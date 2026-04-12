@@ -1,7 +1,7 @@
 import threading
 import time
 import logging
-from modules import sensor
+from modules.sensor import sensor
 from modules import buzzer
 import server
 
