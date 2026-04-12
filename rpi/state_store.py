@@ -49,6 +49,7 @@ DEFAULT_STATE = {
         "sms_cycle": DEFAULT_SMS_EVERY_CYCLE
     },
     "sms_recipient": "",
+    "sms_api_key": "",
     "all_dry_notified": False,
     "uv_on": False,
     "slots": {

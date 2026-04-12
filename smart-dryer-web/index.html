@@ -260,10 +260,13 @@ main{
         Completing a cycle will automatically return motor to HOME.
       </p>
       
-      <div class="section-title" style="margin-top:24px">Semaphore Alerts</div>
+      <div class="section-title" style="margin-top:24px">Semaphore SMS Alerts</div>
       <div class="input-grp">
         <input type="text" id="in_sms_recipient" placeholder="09XXXXXXXXX">
         <button class="btn-outline" style="width:auto;padding:0 20px" onclick="saveSettings()">SAVE</button>
+      </div>
+      <div class="input-grp">
+        <input type="password" id="in_sms_api_key" placeholder="Semaphore API Key" style="flex:1">
       </div>
       <label style="font-size:0.75rem;color:var(--text3);display:flex;align-items:center;gap:8px;margin-top:8px">
         <input type="checkbox" id="in_sms_cycle" onchange="saveSettings()"> Send SMS every complete cycle
@@ -466,6 +469,7 @@ function updateUI(d) {
     document.getElementById('in_dwell').value = st.dwell_time || 5;
     document.getElementById('in_scan_int').value = st.scan_interval || 300;
     document.getElementById('in_sms_recipient').value = st.sms_recipient || '';
+    document.getElementById('in_sms_api_key').value = st.sms_api_key || '';
   }
 
   // 4. Slots Mapping
@@ -580,7 +584,8 @@ function saveSettings() {
     },
     dwell_time: document.getElementById('in_dwell').value,
     scan_interval: document.getElementById('in_scan_int').value,
-    sms_recipient: document.getElementById('in_sms_recipient').value
+    sms_recipient: document.getElementById('in_sms_recipient').value,
+    sms_api_key: document.getElementById('in_sms_api_key').value
   };
   cmd('update_settings', payload);
 }
