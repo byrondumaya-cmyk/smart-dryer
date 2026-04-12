@@ -57,15 +57,15 @@ class MotorController:
     def _forward(self):
         if not _GPIO_AVAILABLE:
             return
-        GPIO.output(GPIO_PINS['motor_in1'], GPIO.HIGH)
-        GPIO.output(GPIO_PINS['motor_in2'], GPIO.LOW)
+        GPIO.output(GPIO_PINS['motor_in1'], GPIO.LOW)
+        GPIO.output(GPIO_PINS['motor_in2'], GPIO.HIGH)
         self._pwm.ChangeDutyCycle(MOTOR_PWM_SPEED)
 
     def _backward(self):
         if not _GPIO_AVAILABLE:
             return
-        GPIO.output(GPIO_PINS['motor_in1'], GPIO.LOW)
-        GPIO.output(GPIO_PINS['motor_in2'], GPIO.HIGH)
+        GPIO.output(GPIO_PINS['motor_in1'], GPIO.HIGH)
+        GPIO.output(GPIO_PINS['motor_in2'], GPIO.LOW)
         self._pwm.ChangeDutyCycle(MOTOR_PWM_SPEED)
 
     def _stop(self):
@@ -144,13 +144,19 @@ class MotorController:
         return pos
 
     # ── Public: Move to slot ──────────────────────────────────────────────────
-    def move_to_slot(self, slot: int) -> bool:
+    def move_to_slot(self, slot) -> bool:
         """
         Move to `slot` position using time-based drive from current position.
         Position is calculated by summing segments.
         """
+        try:
+            slot = int(slot)
+        except (ValueError, TypeError):
+            logger.error(f"Invalid slot payload: {slot}")
+            return False
+
         if slot not in range(1, 6):
-            logger.error(f"Invalid slot: {slot}")
+            logger.error(f"Invalid slot index: {slot}")
             return False
 
         target_ms = self._get_slot_ms(slot)

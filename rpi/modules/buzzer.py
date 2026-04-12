@@ -69,51 +69,88 @@ class BuzzerModule:
         def _run():
             with _lock:
                 if state == "system_started":
+                    # Ascending boot sequence
                     self._beep(0.2, 1200)
-                    time.sleep(0.1)
-                    self._beep(0.4, 1500)
+                    time.sleep(0.05)
+                    self._beep(0.2, 1500)
+                    time.sleep(0.05)
+                    self._beep(0.4, 2000)
                 elif state == "homing_started":
-                    self._beep(0.1, 800)
+                    # Low prolonged drone
+                    self._beep(0.4, 600)
                 elif state == "homing_success":
-                    self._beep(0.15, 1200)
+                    # Happy double high ping
+                    self._beep(0.1, 1800)
+                    time.sleep(0.05)
+                    self._beep(0.1, 2200)
                 elif state == "homing_timeout_or_error":
+                    # 4 flat droning wails
                     for _ in range(4):
-                        self._beep(0.1, 400)
+                        self._beep(0.4, 300)
                         time.sleep(0.1)
                 elif state == "moving_to_slot":
-                    self._beep(0.05, 900)
+                    # Very short click/tick
+                    self._beep(0.03, 1500)
                 elif state == "slot_reached":
-                    self._beep(0.1, 1000)
+                    # Double tick
+                    self._beep(0.05, 1500)
+                    time.sleep(0.05)
+                    self._beep(0.05, 1500)
                 elif state == "slot_scan_started":
-                    self._beep(0.1, 1500)
+                    # Rising chirp
+                    self._beep(0.1, 1000)
+                    time.sleep(0.05)
+                    self._beep(0.1, 1200)
                 elif state == "slot_scan_complete":
-                    self._beep(0.1, 1800)
+                    # Descending chirp
+                    self._beep(0.1, 1200)
+                    time.sleep(0.05)
+                    self._beep(0.1, 1000)
                 elif state == "cycle_started":
-                    self._beep(0.3, 1000)
+                    # 3 ascending
+                    for freq in (1000, 1500, 2000):
+                        self._beep(0.15, freq)
+                        time.sleep(0.05)
                 elif state == "cycle_complete":
-                    self._beep(0.3, 1200)
+                    # 3 descending
+                    for freq in (2000, 1500, 1000):
+                        self._beep(0.2, freq)
+                        time.sleep(0.05)
                 elif state == "all_dry":
-                    for freq in (800, 1000, 1200, 1500):
+                    # Merry arpeggio (C6, E6, G6, C7)
+                    for freq in (1046, 1318, 1568, 2093):
                         self._beep(0.15, freq)
                         time.sleep(0.05)
                 elif state == "not_all_dry":
-                    self._beep(0.2, 800)
-                    time.sleep(0.1)
-                    self._beep(0.2, 600)
+                    # Sad descending
+                    self._beep(0.3, 1000)
+                    time.sleep(0.05)
+                    self._beep(0.3, 800)
+                    time.sleep(0.05)
+                    self._beep(0.5, 600)
                 elif state == "sms_sent":
-                    self._beep(0.1, 2000)
-                    time.sleep(0.1)
-                    self._beep(0.1, 2000)
+                    # High pitched staccato dual beep
+                    self._beep(0.05, 2500)
+                    time.sleep(0.05)
+                    self._beep(0.05, 2500)
                 elif state == "sms_failed":
-                    self._beep(0.5, 400)
+                    # Low staccato dual beep
+                    self._beep(0.3, 400)
+                    time.sleep(0.1)
+                    self._beep(0.3, 400)
                 elif state == "uv_on":
-                    self._beep(0.5, 1800)
+                    # Long descending wail
+                    self._beep(0.2, 1500)
+                    self._beep(0.4, 1000)
                 elif state == "uv_off":
-                    self._beep(0.5, 800)
+                    # Rising
+                    self._beep(0.2, 1000)
+                    self._beep(0.4, 1500)
                 elif state == "generic_error":
-                    for _ in range(3):
-                        self._beep(0.1, 800)
-                        time.sleep(0.1)
+                    # Harsh rapid staccato
+                    for _ in range(5):
+                        self._beep(0.1, 500)
+                        time.sleep(0.05)
                 else:
                     logger.debug(f"Unknown buzzer state requested: {state}")
         
