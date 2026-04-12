@@ -2,6 +2,7 @@ import threading
 import time
 import os
 import cv2
+import numpy as np
 import json
 import logging
 from flask import Flask, Response, request, jsonify, send_from_directory
@@ -22,11 +23,21 @@ class GlobalCamera:
         self._running = False
         self._thread = None
         
+        # Pre-generate a 'No Signal' frame
+        self._no_signal_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(self._no_signal_frame, "NO CAMERA SIGNAL", (120, 240), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+        cv2.putText(self._no_signal_frame, "Check USB/Ribbon Connection", (120, 280), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
+        
     def start(self):
         self._cam = cv2.VideoCapture(0)
         # Try to set lower res for performance
         self._cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self._cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        
+        if not self._cam.isOpened():
+            logger.error("Camera index 0 failed to open!")
         
         self._running = True
         self._thread = threading.Thread(target=self._update, daemon=True)
@@ -46,7 +57,7 @@ class GlobalCamera:
         with self._lock:
             if self._latest_frame is not None:
                 return self._latest_frame.copy()
-            return None
+            return self._no_signal_frame.copy()
 
     def get_jpeg(self):
         frame = self.read_latest()
