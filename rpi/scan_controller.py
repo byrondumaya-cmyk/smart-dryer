@@ -325,6 +325,21 @@ class ScanController:
     def start(self, global_camera=None) -> bool:
         if self._running:
             return False
+        
+        # Clear previous results so UI fallback to live DHT works
+        for slot in range(1, TOTAL_SLOTS + 1):
+            if str(slot) in self._state["slots"]:
+                self._state["slots"][str(slot)].update({
+                    "label": "UNKNOWN",
+                    "confidence": None,
+                    "sensor_score": None,
+                    "image_score": None,
+                    "snapshot_url": None,
+                    "sensor_hum": None,
+                    "sensor_temp": None
+                })
+        state_store.save(self._state)
+
         self._stop_event.clear()
         self._running = True
         self._state["running"] = True

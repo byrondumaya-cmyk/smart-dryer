@@ -173,6 +173,31 @@ def post_command():
         buzzer.play(state_snd)
         return jsonify({"status": "buzzer_tested", "state": state_snd})
 
+    elif cmd == "test_relay":
+        from modules.relay import relay
+        from modules.buzzer import buzzer
+        def _relay_th():
+            buzzer.play("uv_on")
+            relay.on()
+            time.sleep(3)
+            relay.off()
+            buzzer.play("uv_off")
+        threading.Thread(target=_relay_th, daemon=True).start()
+        return jsonify({"status": "relay_test_started"})
+
+    elif cmd == "test_sms":
+        from modules.sms import sms
+        state = state_store.load()
+        recipient = state.get("sms_recipient")
+        if not recipient:
+            return jsonify({"error": "No SMS recipient configured"}), 400
+        
+        ok = sms.send_custom(recipient, "TEST: Smart Dryer SMS integration is functional.")
+        if ok:
+            return jsonify({"status": "sms_test_sent"})
+        else:
+            return jsonify({"error": "SMS failed to send"}), 500
+
     return jsonify({"error": "unknown command"}), 400
 
 def generate_mjpeg():
