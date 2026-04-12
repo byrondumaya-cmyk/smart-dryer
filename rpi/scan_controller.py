@@ -29,7 +29,7 @@ from modules.relay        import relay
 from modules.sms          import sms
 from modules.firestore_sync import (
     push_status, push_slots, push_scan_history,
-    upload_snapshot, start_command_listener,
+    upload_snapshot, start_command_listener, push_log
 )
 import state_store
 
@@ -102,11 +102,10 @@ class ScanController:
             return None
 
         result = classify(frame)
-        logger.info(
-            f"Slot {slot}: {result['label']} "
-            f"({result['confidence']:.2%})"
-            + (" [SIM]" if result.get("simulated") else "")
-        )
+        msg = f"Slot {slot}: {result['label']} ({result['confidence']:.1%})"
+        if result.get("simulated"): msg += " [SIM]"
+        logger.info(msg)
+        push_log(msg)
 
         # Upload snapshot to Firebase Storage
         snapshot_url = upload_snapshot(slot, frame) if frame is not None else None
@@ -117,6 +116,7 @@ class ScanController:
     # ── Full scan cycle ───────────────────────────────────────────────────────
     def _run_cycle(self):
         logger.info("═══ Starting scan cycle ═══")
+        push_log("Starting scan cycle...", 'INFO')
         self._state["system_status"] = "scanning"
         sms.reset_sent_flag()
         state_store.save(self._state)
@@ -162,9 +162,12 @@ class ScanController:
 
         if all_dry and not self._state.get("all_dry_notified"):
             logger.info("All slots DRY — notifying.")
+            push_log("All slots are DRY. Firing notifications.", 'SUCCESS')
             buzzer.drying_complete()
             push_status({'buzzer_last': 'drying_complete'})
             sent = sms.send_drying_complete()
+            if sent:
+                push_log(f"SMS Alert sent to {self._state.get('sms_recipient','')}", 'SUCCESS')
             self._state["all_dry_notified"] = sent
         elif not all_dry:
             self._state["all_dry_notified"] = False
@@ -207,18 +210,21 @@ class ScanController:
                 self._run_cycle()
             except Exception as e:
                 logger.exception(f"Scan cycle crashed: {e}")
+                push_log(f"System error: {e}", 'ERROR')
                 buzzer.error()
                 self._state["system_status"] = "error"
                 state_store.save(self._state)
 
             if self._stop_event.is_set():
+                push_log("Scan manually stopped.", 'WARN')
                 break
 
-            # UV ON during idle interval (sterilization)
             relay.on()
             push_status({'uv_on': True})
             interval = self._state.get("scan_interval", 300)
-            logger.info(f"UV sterilization active. Next scan in {interval}s.")
+            msg = f"UV Sterilization ON. Next scan in {interval}s."
+            logger.info(msg)
+            push_log(msg)
 
             waited = 0
             while waited < interval and not self._stop_event.is_set():

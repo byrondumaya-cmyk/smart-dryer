@@ -104,6 +104,25 @@ def push_config(data: dict):
     _set(COL_SYSTEM, DOC_CONFIG, data)
 
 
+def push_log(message: str, level: str = 'INFO'):
+    """Push a system log message to Firestore for the frontend log console."""
+    if not _init():
+        return
+
+    def _write():
+        try:
+            from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+            _db.collection('system_logs').add({
+                'message': message,
+                'level': level,
+                'created_at': SERVER_TIMESTAMP
+            })
+        except Exception as e:
+            logger.warning(f'Firestore log write failed: {e}')
+
+    threading.Thread(target=_write, daemon=True).start()
+
+
 def push_scan_history(slots_result: dict, all_dry: bool, sensor_snapshot: dict):
     """Add one document to scan_history collection."""
     if not _init():

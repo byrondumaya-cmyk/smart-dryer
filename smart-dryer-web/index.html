@@ -167,21 +167,6 @@ main{
 .slot-card.wet .conf-bar-fill{background:linear-gradient(90deg,#1d4ed8,#3b82f6,#7dd3fc)}
 .slot-card.dry .conf-bar-fill{background:linear-gradient(90deg,#b45309,#f59e0b,#fcd34d)}
 
-.snap-btn {
-  margin-top: 12px;
-  width: 100%;
-  padding: 8px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
-  color: var(--text2);
-  border-radius: 8px;
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.snap-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
-
 /* ── SENSORS ── */
 .sensor-panel {
   background: var(--bg2); border: 1px solid var(--border);
@@ -229,20 +214,6 @@ main{
 .input-row { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding:8px 0; }
 .input-sm { width: 80px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 6px; text-align:center; font-family:var(--mono); }
 
-/* Modal */
-.modal-overlay {
-  position:fixed; inset:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(5px);
-  z-index:999; display:flex; align-items:center; justify-content:center;
-  opacity:0; pointer-events:none; transition:opacity 0.3s;
-}
-.modal-overlay.active { opacity:1; pointer-events:auto; }
-.modal-content {
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 20px;
-  padding: 24px; max-width: 800px; width: 90%; position:relative;
-}
-.modal-close { position:absolute; top:20px; right:20px; background:none; border:none; color:var(--text3); cursor:pointer; font-size:1.5rem; }
-.modal-img { width: 100%; border-radius: 12px; margin-top: 16px; border:1px solid var(--border); max-height:60vh; object-fit:contain; }
-
 /* Status Bar */
 .status-bar {
   display:flex; justify-content:space-between; padding: 12px 24px;
@@ -251,6 +222,30 @@ main{
   margin-bottom: 24px;
 }
 .status-bar.idle { background: rgba(255,255,255,0.02); border-color:var(--border); color: var(--text2); }
+
+/* Inline Snapshot */
+.inline-snap {
+  width: 100%; height: 100px; object-fit: cover; border-radius: 8px;
+  margin-top: 16px; border: 1px solid var(--border);
+  background: rgba(0,0,0,0.3); opacity: 0.5; transition: opacity 0.3s;
+}
+.slot-card.wet .inline-snap, .slot-card.dry .inline-snap { opacity: 1; }
+
+/* Log Box */
+.log-box {
+  background: #000; border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; height: 300px;
+  overflow-y: auto; font-family: var(--mono); font-size: 0.75rem;
+  display: flex; flex-direction: column; gap: 8px;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+}
+.log-line { display: flex; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+.log-time { color: var(--text3); min-width: 65px; }
+.log-msg { color: var(--text); }
+.log-info { color: #3b82f6; }
+.log-success { color: #10b981; }
+.log-warn { color: #f59e0b; }
+.log-error { color: #ef4444; }
 </style>
 </head>
 <body>
@@ -341,25 +336,26 @@ main{
       <button id="btnSaveMotor" class="big-btn btn-primary" style="margin-top:16px;padding:12px">Save Calibration</button>
     </div>
 
+    <!-- TERMINAL LOGS -->
+    <div class="ctrl-card" style="grid-column: 1 / -1;">
+      <div class="section-title">System Terminal</div>
+      <div class="log-box" id="logContainer">
+        <!-- Logs populated by JS -->
+      </div>
+    </div>
+
   </div>
 
 </main>
 
 <footer>SmartDryer IoT Dashboard · Realtime V2</footer>
 
-<!-- SNAPSHOT MODAL -->
-<div class="modal-overlay" id="snapModal">
-  <div class="modal-content">
-    <button class="modal-close" id="btnCloseModal">×</button>
-    <div class="section-title" id="snapTitle" style="color:var(--text)">Slot Snapshot</div>
-    <img src="" id="snapImg" class="modal-img" alt="Snapshot"/>
-  </div>
-</div>
+
 
 <!-- FIREBASE SDK -->
 <script type="module">
 import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, onSnapshot, collection, addDoc, serverTimestamp }
+import { getFirestore, doc, onSnapshot, collection, addDoc, serverTimestamp, query, orderBy, limit }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // Same config as the older dashboard (ensure this points to your active database)
@@ -403,7 +399,7 @@ function initUI() {
           <div class="conf-bar-label"><span>DRY</span><span id="conf${i}">0%</span><span>WET</span></div>
           <div class="conf-bar-bg"><div class="conf-bar-fill" id="bar${i}"></div></div>
         </div>
-        <button class="snap-btn" onclick="openSnap(${i})">View Snapshot</button>
+        <img src="" id="snap${i}" class="inline-snap" alt="Waiting for scan..."/>
       </div>`;
     
     // Sensors
@@ -518,6 +514,7 @@ onSnapshot(doc(db, 'system', 'slots'), snap => {
     const st = document.getElementById('status'+i);
     const cf = document.getElementById('conf'+i);
     const br = document.getElementById('bar'+i);
+    const sn = document.getElementById('snap'+i);
 
     const isWet = sd.label==='WET';
     const isDry = sd.label==='DRY';
@@ -527,10 +524,35 @@ onSnapshot(doc(db, 'system', 'slots'), snap => {
     ic.textContent = isWet?'💧':isDry?'☀️':'⏳';
     st.textContent = sd.label;
     
+    if(sd.snapshot_url) {
+      sn.src = sd.snapshot_url;
+    }
+
     const pct = Math.round((sd.confidence||0)*100);
     cf.textContent = pct + '%';
     br.style.width = pct + '%';
   }
+});
+
+// 5. System Logs listener
+const logsRef = collection(db, 'system_logs');
+const qLogs = query(logsRef, orderBy('created_at', 'desc'), limit(30));
+onSnapshot(qLogs, snap => {
+  const logCont = document.getElementById('logContainer');
+  let html = '';
+  snap.docs.forEach(doc => {
+    const d = doc.data();
+    if(!d.created_at) return;
+    const timeStr = d.created_at.toDate().toLocaleTimeString([], {hour12:false});
+    const lvlClass = d.level ? d.level.toLowerCase() : 'info';
+    html += \`
+      <div class="log-line">
+        <div class="log-time">[\${timeStr}]</div>
+        <div class="log-msg log-\${lvlClass}">\${d.message}</div>
+      </div>
+    \`;
+  });
+  logCont.innerHTML = html;
 });
 
 // ── COMMAND SENDER ──
@@ -552,16 +574,6 @@ window.adjMs = function(slot, amount) {
   const el = document.getElementById('ms'+slot);
   el.value = parseInt(el.value || 0) + amount;
 };
-
-window.openSnap = function(slot) {
-  const url = slotUrls[slot];
-  if(!url) return alert('No snapshot captured yet for Slot ' + slot);
-  document.getElementById('snapImg').src = url;
-  document.getElementById('snapTitle').textContent = `Slot ${slot} Snapshot`;
-  document.getElementById('snapModal').classList.add('active');
-};
-
-document.getElementById('btnCloseModal').onclick = ()=>document.getElementById('snapModal').classList.remove('active');
 
 document.getElementById('btnScan').onclick = ()=>{
   sendCommand(isScanning ? 'scan_stop' : 'scan_start');
