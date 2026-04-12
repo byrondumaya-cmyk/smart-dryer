@@ -1,11 +1,7 @@
-# modules/buzzer.py — GPIO Buzzer Control (GPIO 12)
+# modules/buzzer.py — GPIO Buzzer Control & Mapped Signals
 #
-# Patterns:
-#   alert()          — single short beep (startup / info)
-#   error()          — 3 rapid low beeps (system error)
-#   drying_complete() — ascending 3-tone chime (all slots dry)
-#
-# GPIO 12 supports hardware PWM → works with both active and passive buzzers.
+# Provides comprehensive audio feedback loops for the Drying Rack.
+# GPIO 12 supports hardware PWM, enabling pitch variations.
 
 import time
 import threading
@@ -25,7 +21,6 @@ _lock  = threading.Lock()
 
 BUZZER_PIN = GPIO_PINS['buzzer']   # GPIO 12
 
-
 class BuzzerModule:
     def __init__(self):
         self._pwm = None
@@ -41,7 +36,7 @@ class BuzzerModule:
             self._pwm = GPIO.PWM(BUZZER_PIN, 1000)   # 1kHz carrier
             self._pwm.start(0)
         except Exception as e:
-            logger.warning(f"PWM init failed, falling back to digital: {e}")
+            logger.warning(f"PWM init failed, digital fallback: {e}")
             self._pwm = None
         logger.info(f"Buzzer initialised on GPIO {BUZZER_PIN}.")
 
@@ -68,46 +63,71 @@ class BuzzerModule:
         time.sleep(duration)
         self._off()
 
-    # ── Public patterns ───────────────────────────────────────────────────────
-    def _push_event(self, event_name: str):
-        """Push buzzer event to Firestore status doc."""
-        try:
-            from modules.firestore_sync import push_status
-            from google.cloud.firestore_v1 import SERVER_TIMESTAMP
-            push_status({'buzzer_last': event_name, 'buzzer_last_at': SERVER_TIMESTAMP})
-        except Exception as e:
-            logger.debug(f'Buzzer Firestore push skipped: {e}')
-
-    def alert(self):
-        """Single short beep — startup / info."""
+    # ── Pattern Dictionary Runner ─────────────────────────────────────────────
+    def play(self, state: str):
+        """Play a mapped buzzer pattern in a background thread."""
         def _run():
             with _lock:
-                logger.info("[BUZZER] Alert")
-                self._beep(0.15, 1000)
-            self._push_event('alert')
-        threading.Thread(target=_run, daemon=True).start()
-
-    def error(self):
-        """3 rapid low beeps — error condition."""
-        def _run():
-            with _lock:
-                logger.info("[BUZZER] Error pattern")
-                for _ in range(3):
-                    self._beep(0.1, 800)
+                if state == "system_started":
+                    self._beep(0.2, 1200)
                     time.sleep(0.1)
-            self._push_event('error')
+                    self._beep(0.4, 1500)
+                elif state == "homing_started":
+                    self._beep(0.1, 800)
+                elif state == "homing_success":
+                    self._beep(0.15, 1200)
+                elif state == "homing_timeout_or_error":
+                    for _ in range(4):
+                        self._beep(0.1, 400)
+                        time.sleep(0.1)
+                elif state == "moving_to_slot":
+                    self._beep(0.05, 900)
+                elif state == "slot_reached":
+                    self._beep(0.1, 1000)
+                elif state == "slot_scan_started":
+                    self._beep(0.1, 1500)
+                elif state == "slot_scan_complete":
+                    self._beep(0.1, 1800)
+                elif state == "cycle_started":
+                    self._beep(0.3, 1000)
+                elif state == "cycle_complete":
+                    self._beep(0.3, 1200)
+                elif state == "all_dry":
+                    for freq in (800, 1000, 1200, 1500):
+                        self._beep(0.15, freq)
+                        time.sleep(0.05)
+                elif state == "not_all_dry":
+                    self._beep(0.2, 800)
+                    time.sleep(0.1)
+                    self._beep(0.2, 600)
+                elif state == "sms_sent":
+                    self._beep(0.1, 2000)
+                    time.sleep(0.1)
+                    self._beep(0.1, 2000)
+                elif state == "sms_failed":
+                    self._beep(0.5, 400)
+                elif state == "uv_on":
+                    self._beep(0.5, 1800)
+                elif state == "uv_off":
+                    self._beep(0.5, 800)
+                elif state == "generic_error":
+                    for _ in range(3):
+                        self._beep(0.1, 800)
+                        time.sleep(0.1)
+                else:
+                    logger.debug(f"Unknown buzzer state requested: {state}")
+        
         threading.Thread(target=_run, daemon=True).start()
 
+    # Legacy mappings
+    def alert(self):
+        self.play("system_started")
+        
+    def error(self):
+        self.play("generic_error")
+        
     def drying_complete(self):
-        """Ascending 3-tone chime — all slots dry."""
-        def _run():
-            with _lock:
-                logger.info("[BUZZER] Drying complete chime")
-                for freq in (800, 1000, 1200):
-                    self._beep(0.2, freq)
-                    time.sleep(0.05)
-            self._push_event('drying_complete')
-        threading.Thread(target=_run, daemon=True).start()
+        self.play("all_dry")
 
     def cleanup(self):
         self._off()
@@ -116,8 +136,6 @@ class BuzzerModule:
                 self._pwm.stop()
             except Exception:
                 pass
-        logger.info("Buzzer cleaned up.")
-
 
 # Singleton
 buzzer = BuzzerModule()

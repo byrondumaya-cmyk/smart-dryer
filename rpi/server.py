@@ -156,6 +156,12 @@ def post_command():
         state_store.save(state)
         return jsonify({"status": "updated"})
 
+    elif cmd == "test_buzzer":
+        state_snd = data.get("state", "system_started")
+        from modules.buzzer import buzzer
+        buzzer.play(state_snd)
+        return jsonify({"status": "buzzer_tested", "state": state_snd})
+
     return jsonify({"error": "unknown command"}), 400
 
 def generate_mjpeg():

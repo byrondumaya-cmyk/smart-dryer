@@ -9,41 +9,61 @@ import logging
 import threading
 
 from config import (
-    STATE_FILE, TOTAL_SLOTS, DEFAULT_SCAN_INTERVAL_SECONDS,
-    DEFAULT_MOTOR_SEGMENTS, DEFAULT_DWELL_TIME_SECONDS,
-    DEFAULT_SENSOR_WEIGHT, DEFAULT_IMAGE_WEIGHT,
-    DEFAULT_WET_THRESHOLD, DEFAULT_DRY_THRESHOLD,
-    DEFAULT_UV_AUTO_MODE, DEFAULT_SMS_EVERY_CYCLE
+    STATE_FILE,
+    TOTAL_SLOTS,
+    DEFAULT_SCAN_INTERVAL_SECONDS,
+    DEFAULT_MOTOR_SEGMENTS,
+    DEFAULT_DWELL_TIME,
+    DEFAULT_SENSOR_WEIGHT,
+    DEFAULT_IMAGE_WEIGHT,
+    DEFAULT_WET_THRESHOLD,
+    DEFAULT_DRY_THRESHOLD,
+    DEFAULT_UV_AUTO_MODE,
+    DEFAULT_SMS_EVERY_CYCLE,
+    DEFAULT_MOTOR_HOME_TIMEOUT,
 )
 
 logger = logging.getLogger(__name__)
 _lock = threading.Lock()
 
+# Default structure for a fresh installation
 DEFAULT_STATE = {
-    "scan_interval":  DEFAULT_SCAN_INTERVAL_SECONDS,
+    "system_status": "idle",
+    "running": False,
+    "current_slot": None,
+    "last_cycle_at": None,
+    "scan_interval": DEFAULT_SCAN_INTERVAL_SECONDS,
+    "dwell_time": DEFAULT_DWELL_TIME,
     "motor_segments": dict(DEFAULT_MOTOR_SEGMENTS),
-    "dwell_time":     DEFAULT_DWELL_TIME_SECONDS,
+    "motor_home_timeout": DEFAULT_MOTOR_HOME_TIMEOUT,
     "weights": {
-        "sensor":     DEFAULT_SENSOR_WEIGHT,
-        "image":      DEFAULT_IMAGE_WEIGHT
+        "sensor": DEFAULT_SENSOR_WEIGHT,
+        "image": DEFAULT_IMAGE_WEIGHT
     },
     "thresholds": {
-        "wet":        DEFAULT_WET_THRESHOLD,
-        "dry":        DEFAULT_DRY_THRESHOLD
+        "wet": DEFAULT_WET_THRESHOLD,
+        "dry": DEFAULT_DRY_THRESHOLD
     },
     "toggles": {
-        "uv_auto":    DEFAULT_UV_AUTO_MODE,
-        "sms_cycle":  DEFAULT_SMS_EVERY_CYCLE
+        "uv_auto": DEFAULT_UV_AUTO_MODE,
+        "sms_cycle": DEFAULT_SMS_EVERY_CYCLE
     },
-    "sms_recipient":  "",
-    "sms_api_key":    "",
-    "slots": {
-        str(i): {"label": None, "confidence": None, "last_scanned": None}
-        for i in range(1, TOTAL_SLOTS + 1)
-    },
-    "system_status":  "idle",   # idle | scanning | error
-    "last_cycle_at":  None,
+    "sms_recipient": "",
     "all_dry_notified": False,
+    "uv_on": False,
+    "slots": {
+        str(i): {
+            "label": "WAITING",
+            "confidence": 0.0,
+            "last_scanned": None,
+            "sensor_hum": None,
+            "sensor_temp": None,
+            # For robust hysteresis, we track the last resolved stable state locally inside the slot
+            "stable_state": "UNKNOWN",
+            "breakdown": {}
+        }
+        for i in range(1, TOTAL_SLOTS + 1)
+    }
 }
 
 
@@ -55,11 +75,24 @@ def load() -> dict:
         return dict(DEFAULT_STATE)
     try:
         with open(STATE_FILE, "r") as f:
-            stored = json.load(f)
-        # Merge with defaults so new keys are always present
-        merged = dict(DEFAULT_STATE)
-        merged.update(stored)
-        return merged
+            state = json.load(f)
+        
+        # Migration checks to ensure missing nested dicts are added dynamically
+        # without overwriting existing settings
+        for key, val in DEFAULT_STATE.items():
+            if key not in state:
+                state[key] = val
+                
+        if "toggles" not in state:
+            state["toggles"] = DEFAULT_STATE["toggles"]
+        if "weights" not in state:
+            state["weights"] = DEFAULT_STATE["weights"]
+        if "thresholds" not in state:
+            state["thresholds"] = DEFAULT_STATE["thresholds"]
+        if "dwell_time" not in state:
+            state["dwell_time"] = DEFAULT_STATE["dwell_time"]
+            
+        return state
     except Exception as e:
         logger.error(f"State load failed: {e} — using defaults.")
         return dict(DEFAULT_STATE)

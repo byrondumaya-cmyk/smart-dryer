@@ -18,6 +18,9 @@
   --dry:       #f59e0b;
   --dry-glow:  rgba(245,158,11,0.35);
   --dry-dim:   rgba(245,158,11,0.08);
+  --empty:     #8b5cf6;
+  --empty-dim: rgba(139,92,246,0.08);
+  --empty-glow:rgba(139,92,246,0.35);
   --ok:        #10b981;
   --ok-glow:   rgba(16,185,129,0.3);
   --muted:     #4b5563;
@@ -104,7 +107,7 @@ main{
 .slot-card{
   position:relative;overflow:hidden;
   border-radius:20px; border:1px solid var(--border2);
-  background:var(--bg2); padding:24px;
+  background:var(--bg2); padding:24px; display:flex; flex-direction:column;
 }
 .slot-card.wet{
   border-color:rgba(59,130,246,0.4);
@@ -114,13 +117,18 @@ main{
   border-color:rgba(245,158,11,0.4);
   box-shadow:0 0 60px var(--dry-glow), inset 0 0 40px rgba(245,158,11,0.04);
 }
+.slot-card.empty{
+  border-color:rgba(139,92,246,0.4);
+  box-shadow:0 0 60px var(--empty-glow), inset 0 0 40px rgba(139,92,246,0.04);
+}
 .slot-blob{
   position:absolute;top:-40px;right:-40px;
   width:150px;height:150px; border-radius:50%;
-  filter:blur(50px); opacity:0.1;
+  filter:blur(50px); opacity:0.1; pointer-events:none;
 }
 .slot-card.wet .slot-blob{background:#3b82f6}
 .slot-card.dry .slot-blob{background:#f59e0b}
+.slot-card.empty .slot-blob{background:#8b5cf6}
 
 .slot-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
 .slot-label{font-size:0.65rem;font-weight:600;letter-spacing:2px;color:var(--text3);font-family:var(--mono);}
@@ -132,15 +140,19 @@ main{
 }
 .slot-card.wet .slot-badge{background:var(--wet-dim);color:var(--wet);border:1px solid rgba(59,130,246,0.3)}
 .slot-card.dry .slot-badge{background:var(--dry-dim);color:var(--dry);border:1px solid rgba(245,158,11,0.3)}
+.slot-card.empty .slot-badge{background:var(--empty-dim);color:var(--empty);border:1px solid rgba(139,92,246,0.3)}
 .slot-card.unknown .slot-badge{background:rgba(71,85,105,0.2);color:var(--text3);border:1px solid var(--border)}
 
 .slot-status-wrap{display:flex;align-items:center;gap:12px}
 .slot-icon{font-size:2.5rem;}
-.slot-status-text{font-size:2rem;font-weight:900;line-height:1;}
+.slot-status-text{font-size:1.75rem;font-weight:900;line-height:1;}
 .slot-card.wet .slot-status-text{color:var(--wet)}
 .slot-card.dry .slot-status-text{color:var(--dry)}
+.slot-card.empty .slot-status-text{color:var(--empty)}
 
-.breakdown-text { font-size:0.7rem; color:var(--text3); font-family:var(--mono); margin-top:8px;}
+.breakdown-text { font-size:0.7rem; color:var(--text3); font-family:var(--mono); margin-top:12px; margin-bottom:auto;}
+.score-row { display:flex; justify-content:space-between; margin-bottom:4px; padding-bottom:4px; border-bottom:1px solid var(--border2); }
+.score-val { color: var(--text2); font-weight:600; }
 .inline-snap {
   width: 100%; height: 100px; object-fit: cover; border-radius: 8px;
   margin-top: 16px; border: 1px solid var(--border);
@@ -163,6 +175,7 @@ main{
 .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); }
 .btn-outline { background: transparent; border: 1px solid var(--border); color:var(--text2); }
 .btn-outline:active { background: rgba(255,255,255,0.1); }
+.btn-outline:disabled { opacity: 0.3; cursor:not-allowed; }
 
 .input-grp { display:flex; gap:8px; margin-top:12px; }
 .input-grp input {
@@ -188,7 +201,7 @@ main{
 
 .log-box {
   background: #000; border: 1px solid var(--border);
-  border-radius: 12px; padding: 16px; height: 250px;
+  border-radius: 12px; padding: 16px; height: 300px;
   overflow-y: auto; font-family: var(--mono); font-size: 0.75rem;
   display: flex; flex-direction: column; gap: 6px;
 }
@@ -198,6 +211,11 @@ main{
 .log-success { color: #10b981; }
 .log-warn { color: #f59e0b; }
 .log-error { color: #ef4444; }
+
+.bz-select {
+  flex:1; background:rgba(0,0,0,0.3); border:1px solid var(--border);
+  color:var(--text); border-radius:8px; padding:12px; font-family:var(--mono);
+}
 
 @media(max-width:768px){ .controls-grid{grid-template-columns: 1fr;} }
 </style>
@@ -210,7 +228,7 @@ main{
     <div class="brand-name">SmartDryer <span>/ Local V2</span></div>
   </div>
   <div class="header-right">
-    <div class="live-badge" id="uvBadge" style="display:none;background:rgba(167,139,250,0.1);color:#a78bfa;border-color:rgba(167,139,250,0.3)">UV ACTIVE</div>
+    <div class="live-badge" id="uvBadge" style="display:none;background:rgba(167,139,250,0.1);color:#a78bfa;border-color:rgba(167,139,250,0.3)">UV ON</div>
     <div class="live-badge" id="connBadge"><div class="live-dot" id="connDot"></div><span id="connState">CONNECTING</span></div>
   </div>
 </header>
@@ -236,33 +254,36 @@ main{
 
     <!-- SCAN & ALERTS -->
     <div class="ctrl-card">
-      <div class="section-title">Scan Control</div>
+      <div class="section-title">Cycle Control</div>
       <button id="btnScan" class="big-btn btn-start" onclick="toggleScan()">▶ START FULL SCAN</button>
+      <p style="font-size:0.75rem; color:var(--text3); margin-top:8px; text-align:center;">
+        Completing a cycle will automatically return motor to HOME.
+      </p>
       
-      <div class="section-title" style="margin-top:24px">Quick Alerts</div>
+      <div class="section-title" style="margin-top:24px">Semaphore Alerts</div>
       <div class="input-grp">
-        <input type="text" id="in_sms_recipient" placeholder="+639XXXXXXXXX">
+        <input type="text" id="in_sms_recipient" placeholder="09XXXXXXXXX">
         <button class="btn-outline" style="width:auto;padding:0 20px" onclick="saveSettings()">SAVE</button>
       </div>
       <label style="font-size:0.75rem;color:var(--text3);display:flex;align-items:center;gap:8px;margin-top:8px">
-        <input type="checkbox" id="in_sms_cycle" onchange="saveSettings()"> Send SMS every cycle (even if wet)
+        <input type="checkbox" id="in_sms_cycle" onchange="saveSettings()"> Send SMS every complete cycle
       </label>
     </div>
 
     <!-- MOTOR CONTROL -->
     <div class="ctrl-card">
-      <div class="section-title">Motor Control Panel</div>
+      <div class="section-title">Manual Motor Control</div>
       <div class="motor-btn-grp">
-        <button class="btn-outline" onclick="cmd('motor_home')" style="background:rgba(255,255,0,0.1);color:#f59e0b">🏠 HOME</button>
-        <button class="btn-outline" onclick="cmd('wiggle',{direction:-1})">⬅️ WIGGLE L</button>
-        <button class="btn-outline" onclick="cmd('wiggle',{direction:1})">WIGGLE R ➡️</button>
+        <button class="btn-outline manu-btn" onclick="cmd('motor_home')" style="background:rgba(255,255,0,0.1);color:#f59e0b">🏠 HOME</button>
+        <button class="btn-outline manu-btn" onclick="cmd('wiggle',{direction:-1})">⬅️ WIGGLE L</button>
+        <button class="btn-outline manu-btn" onclick="cmd('wiggle',{direction:1})">WIGGLE R ➡️</button>
       </div>
       <div class="motor-btn-grp">
-        <button class="btn-outline" onclick="cmd('motor_slot',{slot:1})">GO S1</button>
-        <button class="btn-outline" onclick="cmd('motor_slot',{slot:2})">GO S2</button>
-        <button class="btn-outline" onclick="cmd('motor_slot',{slot:3})">GO S3</button>
-        <button class="btn-outline" onclick="cmd('motor_slot',{slot:4})">GO S4</button>
-        <button class="btn-outline" onclick="cmd('motor_slot',{slot:5})">GO S5</button>
+        <button class="btn-outline manu-btn" onclick="cmd('motor_slot',{slot:1})">GO S1</button>
+        <button class="btn-outline manu-btn" onclick="cmd('motor_slot',{slot:2})">GO S2</button>
+        <button class="btn-outline manu-btn" onclick="cmd('motor_slot',{slot:3})">GO S3</button>
+        <button class="btn-outline manu-btn" onclick="cmd('motor_slot',{slot:4})">GO S4</button>
+        <button class="btn-outline manu-btn" onclick="cmd('motor_slot',{slot:5})">GO S5</button>
       </div>
 
       <div class="section-title" style="margin-top:24px">Segment Tuning (ms)</div>
@@ -286,35 +307,62 @@ main{
 
     <!-- LOGIC SETTINGS -->
     <div class="ctrl-card">
-      <div class="section-title">Decision Engine Settings</div>
+      <div class="section-title">Numeric Fusion Engine</div>
       <div class="setting-row">
-        <label>Sensor Weight (0-1)</label><input type="number" step="0.1" id="in_sens_w" value="0.6">
+        <label>Sensor Weight (0-1.0)</label><input type="number" step="0.1" id="in_sens_w" value="0.6">
       </div>
       <div class="setting-row">
-        <label>Image Weight (0-1)</label><input type="number" step="0.1" id="in_img_w" value="0.4">
+        <label>Image Weight (0-1.0)</label><input type="number" step="0.1" id="in_img_w" value="0.4">
       </div>
       <div class="setting-row">
-        <label>Wet Threshold (Hum %)</label><input type="number" id="in_wet_th" value="80">
+        <label>Wet Hysteresis Thresh (%)</label><input type="number" id="in_wet_th" value="80">
       </div>
       <div class="setting-row">
-        <label>Dry Threshold (Hum %)</label><input type="number" id="in_dry_th" value="75">
+        <label>Dry Hysteresis Thresh (%)</label><input type="number" id="in_dry_th" value="75">
       </div>
       <div class="setting-row">
         <label>Dwell Time (seconds)</label><input type="number" id="in_dwell" value="5">
       </div>
       <div class="setting-row">
-        <label>Scan Interval (sec)</label><input type="number" id="in_scan_int" value="300">
+        <label>Scan Interval (seconds)</label><input type="number" id="in_scan_int" value="300">
       </div>
       <div class="setting-row" style="border:none">
-        <label>UV Sterilization Auto-Start</label><input type="checkbox" id="in_uv_auto">
+        <label>UV Auto-Start (Dry Cycle)</label><input type="checkbox" id="in_uv_auto">
       </div>
       <button class="big-btn btn-outline" style="margin-top:8px;padding:12px" onclick="saveSettings()">Apply Settings</button>
     </div>
 
     <!-- TERMINAL LOGS -->
-    <div class="ctrl-card" style="grid-column: 1 / -1;">
+    <div class="ctrl-card">
       <div class="section-title">System Terminal</div>
       <div class="log-box" id="logContainer"></div>
+    </div>
+    
+    <!-- BUZZER DEBUG -->
+    <div class="ctrl-card">
+      <div class="section-title">Hardware Acoustics Test</div>
+      <div class="input-grp">
+        <select id="buzzerState" class="bz-select">
+          <option value="system_started">System Started</option>
+          <option value="homing_started">Homing Started</option>
+          <option value="homing_success">Homing Success</option>
+          <option value="homing_timeout_or_error">Homing Error</option>
+          <option value="moving_to_slot">Moving</option>
+          <option value="slot_reached">Slot Reached</option>
+          <option value="slot_scan_started">Scan Started</option>
+          <option value="slot_scan_complete">Scan Complete</option>
+          <option value="cycle_started">Cycle Started</option>
+          <option value="cycle_complete">Cycle Complete</option>
+          <option value="all_dry">All Dry</option>
+          <option value="not_all_dry">Not All Dry</option>
+          <option value="sms_sent">SMS Sent</option>
+          <option value="sms_failed">SMS Failed</option>
+          <option value="uv_on">UV On</option>
+          <option value="uv_off">UV Off</option>
+          <option value="generic_error">Generic Error</option>
+        </select>
+        <button class="btn-outline" style="width:auto;padding:0 20px" onclick="testBuzzer()">PLAY</button>
+      </div>
     </div>
   </div>
 </main>
@@ -335,7 +383,11 @@ for(let i=1; i<=5; i++) {
         <div class="slot-icon" id="icon${i}">⏳</div>
         <div class="slot-status-text" id="status${i}">—</div>
       </div>
-      <div class="breakdown-text" id="info${i}">Hum: --% | Temp: --°C<br/>Img: — | Sens: —</div>
+      <div class="breakdown-text" id="info${i}">
+        <div class="score-row"><span>Sens Num / Tmp</span><span class="score-val" id="bSens${i}">—</span></div>
+        <div class="score-row"><span>Sens Scr (0-1)</span><span class="score-val" id="bScoreS${i}">—</span></div>
+        <div class="score-row" style="border:none"><span>Img Scr (0-1)</span><span class="score-val" id="bScoreI${i}">—</span></div>
+      </div>
       <img src="" id="snap${i}" class="inline-snap" style="display:none" alt="Snapshot"/>
     </div>`;
 }
@@ -373,13 +425,18 @@ function updateUI(d) {
 
   if(d.running) {
     sb.className = 'status-bar';
-    sb.innerHTML = `<span>⚡ SCANNING... (Slot ${d.current_slot||'?'})</span>`;
-    btn.className = 'big-btn btn-stop'; btn.textContent = '⏹ STOP SCAN';
+    sb.innerHTML = `<span>⚡ CYCLE ACTIVE... (Evaluating Slot ${d.current_slot||'?'})</span>`;
+    btn.className = 'big-btn btn-stop'; btn.textContent = '⏹ STOP CYCLE SAFELY';
   } else {
     sb.className = 'status-bar idle';
-    sb.innerHTML = `<span>System Status: IDLE</span><span id="lastCycle">Last cycle: ${d.last_cycle_at||'—'}</span>`;
-    btn.className = 'big-btn btn-start'; btn.textContent = '▶ START FULL SCAN';
+    sb.innerHTML = `<span>System Status: IDLE / HOMED</span><span id="lastCycle">Last cycle: ${d.last_cycle_at||'—'}</span>`;
+    btn.className = 'big-btn btn-start'; btn.textContent = '▶ START FULL CYCLE';
   }
+  
+  // Disable manual controls during scan for safety
+  document.querySelectorAll('.manu-btn').forEach(b => {
+    b.disabled = isScanning;
+  });
 
   // 2. UV Badge
   document.getElementById('uvBadge').style.display = d.state_data?.uv_on ? 'flex' : 'none';
@@ -414,7 +471,6 @@ function updateUI(d) {
 
   // 4. Slots Mapping
   const slots = d.state_data?.slots || {};
-  // Overlay live sensor data if scanning is not active, otherwise keep last scanned
   const liveSensors = d.sensor_live || {};
 
   for(let i=1; i<=5; i++) {
@@ -425,25 +481,26 @@ function updateUI(d) {
     const bg = document.getElementById('badge'+i);
     const ic = document.getElementById('icon'+i);
     const stEl = document.getElementById('status'+i);
-    const inf = document.getElementById('info'+i);
     const snp = document.getElementById('snap'+i);
 
     const isWet = s.label==='WET';
     const isDry = s.label==='DRY';
-    card.className = 'slot-card ' + (isWet?'wet':isDry?'dry':'unknown');
-    bg.textContent = isWet?'💧 WET':isDry?'☀️ DRY':'WAITING';
-    ic.textContent = isWet?'💧':isDry?'☀️':'⏳';
+    const isEmpty = s.label==='EMPTY';
+    
+    card.className = 'slot-card ' + (isWet?'wet':isDry?'dry':isEmpty?'empty':'unknown');
+    bg.textContent = isWet?'💧 WET':isDry?'☀️ DRY':isEmpty?'📭 EMPTY':'WAITING';
+    ic.textContent = isWet?'💧':isDry?'☀️':isEmpty?'📭':'⏳';
     stEl.textContent = s.label || '—';
 
-    // Show live sensor data if available, fallback to snapshot
+    // Live sensory fallback
     let h = s.sensor_hum; let t = s.sensor_temp;
     if(live.humidity != null) { h = live.humidity; t = live.temperature; }
     
-    let bd = s.breakdown || {};
-    inf.innerHTML = `Hum: ${h?h.toFixed(1)+'%':'--'} | Temp: ${t?t.toFixed(1)+'°C':'--'}<br/>Img: ${bd.image_label||'—'} | Sens: ${bd.sensor_label||'—'} | Wght: ${s.confidence ? (s.confidence*100).toFixed(0)+'%' : '--'}`;
+    document.getElementById('bSens'+i).textContent = `${h?h.toFixed(1)+'%':'--'} / ${t?t.toFixed(1)+'C':'--'}`;
+    document.getElementById('bScoreS'+i).textContent = (s.sensor_score != null) ? s.sensor_score.toFixed(2) : '—';
+    document.getElementById('bScoreI'+i).textContent = `${(s.image_score != null) ? s.image_score.toFixed(2) : '—'} [${s.breakdown?.image_label||'—'}]`;
     
     if(s.snapshot_url) {
-      // Add random cache-busting param to image
       snp.src = s.snapshot_url + "?t=" + new Date().getTime();
       snp.style.display = 'block';
     }
@@ -474,6 +531,11 @@ async function cmd(command, payload={}) {
 
 function toggleScan() {
   cmd(isScanning ? 'scan_stop' : 'scan_start');
+}
+
+function testBuzzer() {
+  const state = document.getElementById('buzzerState').value;
+  cmd('test_buzzer', { state });
 }
 
 function saveSettings() {

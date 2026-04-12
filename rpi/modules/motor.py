@@ -24,8 +24,8 @@ from config import (
     DEFAULT_MOTOR_SEGMENTS,
     MOTOR_PWM_FREQ,
     MOTOR_PWM_SPEED,
-    MOTOR_HOME_TIMEOUT,
 )
+import state_store
 
 logger = logging.getLogger(__name__)
 _lock = threading.Lock()
@@ -84,33 +84,54 @@ class MotorController:
     # ── Public: Home ──────────────────────────────────────────────────────────
     def home(self) -> bool:
         """
-        Drive backward until limit switch triggers.
-        Returns True on success, False on timeout.
+        Drive motor backward (towards slot 1/home) until limit switch reads LOW.
+        Timeout if not found within MOTOR_HOME_TIMEOUT.
+        Limit switch is Active LOW (LOW/0 = pulled to ground when switch pressed).
         """
         with _lock:
-            logger.info("Homing motor...")
+            # We don't import scanner here to avoid circular imports.
+            # State mutation for "homing..." will be handled by caller.
+            logger.info("Motor homing sequence started.")
             try:
+                from modules.buzzer import buzzer
+                buzzer.play("homing_started")
+                
                 if not _GPIO_AVAILABLE:
-                    logger.info("[SIM] Motor homed.")
                     self.current_position_ms = 0
+                    logger.info("[SIM] Motor homed.")
+                    buzzer.play("homing_success")
                     return True
 
-                self._backward()
-                deadline = time.time() + MOTOR_HOME_TIMEOUT
-                while time.time() < deadline:
-                    if self._limit_hit():
-                        self._stop()
-                        self.current_position_ms = 0
-                        logger.info("Motor homed — limit switch triggered.")
-                        return True
+                self._backward() # Move towards home limit switch
+                
+                start_time = time.time()
+                success = False
+                timeout = state_store.load().get("motor_home_timeout", 10.0)
+
+                while (time.time() - start_time) < timeout:
+                    # Switch is Active LOW -> 0 means triggered
+                    if GPIO.input(GPIO_PINS['limit_home']) == GPIO.LOW:
+                        success = True
+                        break
                     time.sleep(0.01)
 
                 self._stop()
-                logger.error("Homing timeout — limit switch not reached.")
-                return False
+
+                if success:
+                    self.current_position_ms = 0
+                    logger.info("Limit switch triggered. Homing SUCCESS.")
+                    time.sleep(0.1) # brief pause to let mechanical shake settle
+                    buzzer.play("homing_success")
+                    return True
+                else:
+                    logger.error(f"Homing TIMEOUT after {timeout}s!")
+                    buzzer.play("homing_timeout_or_error")
+                    return False
             except Exception as e:
                 self._stop()
                 logger.error(f"Homing error: {e}")
+                from modules.buzzer import buzzer
+                buzzer.play("generic_error")
                 return False
 
     def _get_slot_ms(self, slot: int) -> int:
