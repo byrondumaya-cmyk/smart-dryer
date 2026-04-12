@@ -58,65 +58,73 @@ class _PigpioDHT:
     """
     Hardware-timed DHT22/DHT11 reader via the pigpio daemon.
 
-    How it works:
-      1. trigger() pulls GPIO LOW for 18 ms to wake the sensor.
-      2. The sensor responds with a 40-bit pulse train.
-      3. pigpiod timestamps every GPIO edge via hardware interrupt (not Python).
-      4. _edge() callback converts pulse widths to bits → _decode() validates.
+    Protocol timing (after trigger):
+      Preamble : 80µs LOW → 80µs HIGH  (2 rising edges to skip)
+      Each bit : 50µs LOW → 26µs HIGH (0-bit) or 70µs HIGH (1-bit)
 
-    This runs entirely outside Python's GIL during the timing-critical phase,
-    which is why it's reliable on Pi 4 where pure-Python bitbang is not.
+    Edge-counting state machine (Joan / pigpio reference approach):
+      - self._bit starts at -2 (preamble slots) and increments on every
+        RISING edge. Data bits are read on FALLING edges once _bit >= 0.
+      - Threshold between 0/1: 50µs  (midpoint of 26µs vs 70µs)
+
+    Bug fixes vs previous version:
+      1. Removed 100µs glitch filter — DHT 0-bits are 26µs and inter-bit
+         LOWs are 50µs; a 100µs filter wiped the entire signal.
+      2. Fixed bit threshold 100µs → 50µs — DHT22 1-bit HIGH is 70µs,
+         which is LESS than 100, so all bits decoded as 0 previously.
     """
 
-    _GLITCH_US = 100   # ignore pulses shorter than 100 µs (noise rejection)
+    _BIT_1_THRESHOLD_US = 50   # >50µs HIGH = 1-bit  (26µs = 0-bit, 70µs = 1-bit)
 
     def __init__(self, pi, gpio: int, model: str = 'DHT22'):
-        self._pi     = pi
-        self._gpio   = gpio
-        self._model  = model
-        self._reset()
-        pi.set_pull_up_down(gpio, pigpio.PUD_UP)
-        pi.set_glitch_filter(gpio, self._GLITCH_US)
-        self._cb = pi.callback(gpio, pigpio.EITHER_EDGE, self._edge)
-
-    def _reset(self):
-        self._high_tick  = 0
-        self._bits       = []
+        self._pi    = pi
+        self._gpio  = gpio
+        self._model = model
+        self._last_tick = 0
+        self._bit       = -2        # -2,-1 = preamble; 0-39 = data bits
+        self._data      = [0] * 5  # 5 bytes (hex values, built bit by bit)
         self._temperature = None
         self._humidity    = None
         self._error       = None
 
+        pi.set_pull_up_down(gpio, pigpio.PUD_UP)
+        # NO glitch filter — smallest DHT pulse is 26µs; any filter ≥26µs
+        # risks eating real data pulses.
+        self._cb = pi.callback(gpio, pigpio.EITHER_EDGE, self._edge)
+
     def _edge(self, gpio, level, tick):
-        if level == pigpio.HIGH:
-            self._high_tick = tick
-            return
-        if self._high_tick == 0:
-            return
+        dt = pigpio.tickDiff(self._last_tick, tick)
+        self._last_tick = tick
 
-        dt = pigpio.tickDiff(self._high_tick, tick)   # µs since last rising edge
+        if level == pigpio.LOW:
+            # ── Falling edge: dt = duration of the HIGH just ended ──────────
+            if self._bit >= 0:
+                # Data bit — shift in the bit value
+                self._data[self._bit >> 3] <<= 1
+                if dt > self._BIT_1_THRESHOLD_US:
+                    self._data[self._bit >> 3] |= 1
 
-        if dt > 10_000:
-            # Long LOW = gap before start signal — reset bit buffer
-            self._bits = []
-        elif len(self._bits) < 40:
-            # DHT encodes: ~26µs = 0-bit, ~70µs = 1-bit
-            self._bits.append(1 if dt > 100 else 0)
+                if self._bit == 39:
+                    self._decode()   # all 40 bits received
 
-        if len(self._bits) == 40:
-            self._decode()
+        else:
+            # ── Rising edge: dt = duration of the LOW just ended ───────────
+            if dt > 10_000:
+                # Long LOW: trigger pulse released or idle gap — fresh start
+                self._bit  = -2
+                self._data = [0] * 5
+                self._error = None
+            else:
+                # Short LOW: preamble (80µs) or inter-bit LOW (50µs)
+                self._bit += 1      # advance through -2 → -1 → 0 → 1 ...
 
     def _decode(self):
-        b = self._bits
-        raw = [
-            int(''.join(str(x) for x in b[0:8]),  2),
-            int(''.join(str(x) for x in b[8:16]), 2),
-            int(''.join(str(x) for x in b[16:24]), 2),
-            int(''.join(str(x) for x in b[24:32]), 2),
-            int(''.join(str(x) for x in b[32:40]), 2),
-        ]
+        raw      = self._data
         checksum = (raw[0] + raw[1] + raw[2] + raw[3]) & 0xFF
         if checksum != raw[4]:
-            self._error = f'Checksum mismatch (got {raw[4]:#04x}, expected {checksum:#04x})'
+            self._error = (
+                f'Checksum mismatch (got {raw[4]:#04x}, expected {checksum:#04x})'
+            )
             return
 
         if self._model == 'DHT22':
@@ -136,11 +144,15 @@ class _PigpioDHT:
             self._error = f'Out-of-range: T={temp} H={hum}'
 
     def trigger(self):
-        """Send the 18 ms wake-up pulse to the DHT sensor then release line."""
-        self._reset()
+        """Send the 18 ms wake-up pulse then release to INPUT (pull-up HIGH)."""
+        # Reset state — the rising edge when pull-up kicks in will be
+        # treated as a long-LOW recovery and reset _bit to -2 automatically.
+        self._temperature = None
+        self._humidity    = None
+        self._error       = None
         self._pi.set_mode(self._gpio, pigpio.OUTPUT)
         self._pi.write(self._gpio, pigpio.LOW)
-        time.sleep(0.018)              # ≥18 ms required by DHT spec
+        time.sleep(0.018)        # ≥18 ms per DHT spec
         self._pi.set_mode(self._gpio, pigpio.INPUT)
 
     @property
