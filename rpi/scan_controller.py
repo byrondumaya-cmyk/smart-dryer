@@ -94,7 +94,7 @@ class ScanController:
             image_dry_score = None # Neutral state, do not leak float scores
 
         # 2. Read Sensor -> Convert to Continuous Score w/ Hysteresis
-        sensor_data = sensor.read(slot)
+        sensor_data = sensor.read_slot(slot)
         hum = sensor_data.get('humidity') if sensor_data else None
         temp = sensor_data.get('temperature') if sensor_data else None
         
@@ -181,6 +181,11 @@ class ScanController:
         self._state["system_status"] = "scanning"
         sms.reset_sent_flag()
         state_store.save(self._state)
+
+        self._log_event("Homing carriage before cycle...", "INFO")
+        if not motor.home():
+            self._log_event("Homing failed! Aborting cycle.", "ERROR")
+            return
 
         cycle_results = {}
 
