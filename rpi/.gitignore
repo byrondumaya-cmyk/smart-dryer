@@ -1,0 +1,26 @@
+# ── AI coding kit (dev tooling — not project code) ───────────────────────────
+.agent/
+
+# ── Secrets (NEVER commit these) ──────────────────────────────────────────────
+serviceAccountKey.json
+
+# ── Model cache (downloaded at runtime from Firebase) ─────────────────────────
+ai/model_cache/
+
+# ── Runtime data ──────────────────────────────────────────────────────────────
+data/
+smart_dryer.log
+*.log
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp

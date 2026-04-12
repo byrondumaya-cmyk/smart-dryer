@@ -1,0 +1,21 @@
+# Python packages — Smart Dryer System
+# Install on Raspberry Pi:
+#   pip install -r requirements.txt --break-system-packages
+
+# ── Web framework ─────────────────────────────────────────────────────────────
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# ── Computer vision ───────────────────────────────────────────────────────────
+opencv-python-headless>=4.9.0   # headless = no GUI deps (Pi-friendly)
+ultralytics>=8.0.0              # YOLOv8 inference
+
+# ── Hardware (Raspberry Pi only) ──────────────────────────────────────────────
+RPi.GPIO>=0.7.0
+adafruit-circuitpython-dht>=3.7.0
+
+# ── Firebase (model storage + auth) ──────────────────────────────────────────
+firebase-admin>=6.5.0
+
+# ── HTTP / SMS ────────────────────────────────────────────────────────────────
+requests>=2.31.0

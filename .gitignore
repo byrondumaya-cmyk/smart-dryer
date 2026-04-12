@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Runtime / secrets — NEVER commit these
+serviceAccountKey.json
+*.env
+.env.local
+.env*.local
+
+# Model cache (downloaded automatically on first boot)
+rpi/ai/model_cache/
+rpi/data/state.json
+rpi/smart_dryer.log
+
+# Next.js
+smart-dryer-web/.next/
+smart-dryer-web/out/
+smart-dryer-web/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

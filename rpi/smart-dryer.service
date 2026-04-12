@@ -1,0 +1,28 @@
+# smart-dryer.service
+# Auto-starts Smart Dryer on Raspberry Pi boot via systemd
+#
+# Setup:
+#   sudo cp smart-dryer.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable smart-dryer
+#   sudo systemctl start smart-dryer
+#
+# Logs:
+#   sudo journalctl -u smart-dryer -f
+
+[Unit]
+Description=Smart Dryer Control System
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/smart_dryer
+ExecStart=/usr/bin/python3 /home/pi/smart_dryer/main.py
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
