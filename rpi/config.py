@@ -24,45 +24,43 @@ SLOT_SENSOR_MAP = {
 }
 
 # ── Motor (L298N DC) Calibration ──────────────────────────────────────────────
-# Time (ms) from home position to reach each slot center.
-# Adjust per your actual hardware via the dashboard calibration tool.
-DEFAULT_SLOT_STEPS = {
-    1: 0,       # home
-    2: 800,
-    3: 1600,
-    4: 2400,
-    5: 3200,
+# Time (ms) of travel for each segment.
+# Absolute slot position is calculated by summing segments from home.
+DEFAULT_MOTOR_SEGMENTS = {
+    'home_to_s1': 800,
+    's1_to_s2': 800,
+    's2_to_s3': 800,
+    's3_to_s4': 800,
+    's4_to_s5': 800,
 }
 
 MOTOR_PWM_FREQ      = 1000    # Hz — PWM carrier frequency for ENA pin
 MOTOR_PWM_SPEED     = 75      # Duty cycle 0–100 (75% = safe operating speed)
 MOTOR_HOME_TIMEOUT  = 10.0    # Seconds before homing gives up
 
-# ── Scan Settings ─────────────────────────────────────────────────────────────
-TOTAL_SLOTS                  = 5
+# ── Scan & Decision Logic ─────────────────────────────────────────────────────
+TOTAL_SLOTS                   = 5
 DEFAULT_SCAN_INTERVAL_SECONDS = 300   # 5 minutes
 MIN_SCAN_INTERVAL_SECONDS     = 60
 MAX_SCAN_INTERVAL_SECONDS     = 3600
 
+DEFAULT_DWELL_TIME_SECONDS    = 5     # Time to wait at each slot to stabilize
+DEFAULT_SENSOR_WEIGHT         = 0.60  # Weight given to DHT sensor (0-1.0)
+DEFAULT_IMAGE_WEIGHT          = 0.40  # Weight given to YOLO classification (0-1.0)
+DEFAULT_WET_THRESHOLD         = 80    # Humidity % threshold to consider WET
+DEFAULT_DRY_THRESHOLD         = 75    # Humidity % threshold to consider DRY
+
+# ── UV & SMS Defaults ────────────────────────────────────────────────────────
+DEFAULT_UV_AUTO_MODE          = False
+DEFAULT_SMS_EVERY_CYCLE       = False
+
 # ── DHT Sensor ────────────────────────────────────────────────────────────────
 DHT_READ_INTERVAL = 10   # Seconds between full 5-sensor poll cycles
 
-# ── Firebase (project: ehubtest-51d0a) ────────────────────────────────────────
-# Service account key must be placed at: <project_root>/serviceAccountKey.json
-# Download from: Firebase Console → Project Settings → Service Accounts →
-#                Generate new private key
-FIREBASE_PROJECT_ID    = "ehubtest-51d0a"
-FIREBASE_STORAGE_BUCKET = "ehubtest-51d0a.firebasestorage.app"
-FIREBASE_MODEL_PATH    = "models/best.pt"        # Path inside Firebase Storage
+# ── Local File Paths ──────────────────────────────────────────────────────────
 MODEL_CACHE_PATH       = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "ai", "model_cache", "best.pt"
 )
-
-# Firestore collection / document names (matches dashboard expectations)
-FIRESTORE_COL_SYSTEM   = "system"
-FIRESTORE_COL_COMMANDS = "commands"
-FIRESTORE_COL_HISTORY  = "scan_history"
-FIRESTORE_STORAGE_SNAP = "snapshots"   # Firebase Storage prefix for snapshots
 
 # ── SMS (Semaphore PH) ────────────────────────────────────────────────────────
 SMS_API_URL = "https://api.semaphore.co/api/v4/messages"

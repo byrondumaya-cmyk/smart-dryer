@@ -8,14 +8,33 @@ import os
 import logging
 import threading
 
-from config import STATE_FILE, DEFAULT_SLOT_STEPS, DEFAULT_SCAN_INTERVAL_SECONDS, TOTAL_SLOTS
+from config import (
+    STATE_FILE, TOTAL_SLOTS, DEFAULT_SCAN_INTERVAL_SECONDS,
+    DEFAULT_MOTOR_SEGMENTS, DEFAULT_DWELL_TIME_SECONDS,
+    DEFAULT_SENSOR_WEIGHT, DEFAULT_IMAGE_WEIGHT,
+    DEFAULT_WET_THRESHOLD, DEFAULT_DRY_THRESHOLD,
+    DEFAULT_UV_AUTO_MODE, DEFAULT_SMS_EVERY_CYCLE
+)
 
 logger = logging.getLogger(__name__)
 _lock = threading.Lock()
 
 DEFAULT_STATE = {
     "scan_interval":  DEFAULT_SCAN_INTERVAL_SECONDS,
-    "slot_steps":     {str(k): v for k, v in DEFAULT_SLOT_STEPS.items()},
+    "motor_segments": dict(DEFAULT_MOTOR_SEGMENTS),
+    "dwell_time":     DEFAULT_DWELL_TIME_SECONDS,
+    "weights": {
+        "sensor":     DEFAULT_SENSOR_WEIGHT,
+        "image":      DEFAULT_IMAGE_WEIGHT
+    },
+    "thresholds": {
+        "wet":        DEFAULT_WET_THRESHOLD,
+        "dry":        DEFAULT_DRY_THRESHOLD
+    },
+    "toggles": {
+        "uv_auto":    DEFAULT_UV_AUTO_MODE,
+        "sms_cycle":  DEFAULT_SMS_EVERY_CYCLE
+    },
     "sms_recipient":  "",
     "sms_api_key":    "",
     "slots": {

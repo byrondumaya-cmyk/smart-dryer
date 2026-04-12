@@ -3,10 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SmartDryer — V2 Control Dashboard</title>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta http-equiv="Pragma" content="no-cache"/>
-<meta http-equiv="Expires" content="0"/>
+<title>SmartDryer — V2 Local Control</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -38,18 +35,13 @@ body{
   min-height:100vh;
   overflow-x:hidden;
 }
-
-/* ── GRID NOISE BACKGROUND ── */
 body::before{
-  content:'';
-  position:fixed;inset:0;
+  content:''; position:fixed;inset:0;
   background-image:
     radial-gradient(ellipse 80% 50% at 20% -10%, rgba(59,130,246,0.08) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 80% 110%, rgba(245,158,11,0.06) 0%, transparent 60%);
   pointer-events:none;z-index:0;
 }
-
-/* ── HEADER ── */
 header{
   position:sticky;top:0;z-index:100;
   display:flex;align-items:center;justify-content:space-between;
@@ -65,9 +57,8 @@ header{
   border-radius:10px;
   display:flex;align-items:center;justify-content:center;
   font-size:18px;
-  box-shadow:0 0 20px rgba(59,130,246,0.3);
 }
-.brand-name{font-size:1.1rem;font-weight:700;letter-spacing:-0.5px}
+.brand-name{font-size:1.1rem;font-weight:700;}
 .brand-name span{color:var(--text3);font-weight:400}
 .header-right{display:flex;align-items:center;gap:16px}
 .live-badge{
@@ -76,17 +67,14 @@ header{
   border:1px solid rgba(16,185,129,0.25);
   border-radius:20px;padding:5px 12px;
   font-size:0.75rem;font-weight:600;color:var(--ok);
-  font-family:var(--mono);letter-spacing:0.5px;
+  font-family:var(--mono);
 }
 .live-dot{
   width:7px;height:7px;border-radius:50%;
   background:var(--ok);
   animation:livepulse 1.5s ease infinite;
 }
-@keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.8)}}
-.last-update{font-size:0.72rem;color:var(--text3);font-family:var(--mono)}
-
-/* ── MAIN LAYOUT ── */
+@keyframes livepulse{0%,100%{opacity:1}50%{opacity:0.4}}
 main{
   position:relative;z-index:1;
   max-width:1400px;margin:0 auto;
@@ -101,18 +89,22 @@ main{
 }
 .section-title::after{content:'';flex:1;height:1px;background:var(--border)}
 
-/* ── SLOTS ── */
+.status-bar {
+  display:flex; justify-content:space-between; padding: 12px 24px;
+  background: rgba(16,185,129,0.05); border: 1px solid rgba(16,185,129,0.2);
+  border-radius: 12px; color: var(--ok); font-family: var(--mono); font-size:0.8rem;
+}
+.status-bar.idle { background: rgba(255,255,255,0.02); border-color:var(--border); color: var(--text2); }
+
+/* Slots */
 .slots-row{
   display:grid;gap:20px;
   grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
 }
 .slot-card{
   position:relative;overflow:hidden;
-  border-radius:20px;
-  border:1px solid var(--border2);
-  background:var(--bg2);
-  padding:24px;
-  transition:border-color 0.5s,box-shadow 0.5s;
+  border-radius:20px; border:1px solid var(--border2);
+  background:var(--bg2); padding:24px;
 }
 .slot-card.wet{
   border-color:rgba(59,130,246,0.4);
@@ -122,30 +114,20 @@ main{
   border-color:rgba(245,158,11,0.4);
   box-shadow:0 0 60px var(--dry-glow), inset 0 0 40px rgba(245,158,11,0.04);
 }
-.slot-card.unknown{
-  border-color:var(--border);
-  box-shadow:none;
-}
 .slot-blob{
   position:absolute;top:-40px;right:-40px;
-  width:150px;height:150px;
-  border-radius:50%;
-  filter:blur(50px);
-  opacity:0.15;
-  transition:background 0.5s;
-  pointer-events:none;
+  width:150px;height:150px; border-radius:50%;
+  filter:blur(50px); opacity:0.1;
 }
 .slot-card.wet .slot-blob{background:#3b82f6}
 .slot-card.dry .slot-blob{background:#f59e0b}
-.slot-card.unknown .slot-blob{background:#475569}
 
 .slot-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
-.slot-label{font-size:0.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text3);font-family:var(--mono);}
+.slot-label{font-size:0.65rem;font-weight:600;letter-spacing:2px;color:var(--text3);font-family:var(--mono);}
 .slot-number{font-size:1.3rem;font-weight:900;color:var(--text);margin-top:2px}
 .slot-badge{
   padding:4px 10px;border-radius:20px;
   font-size:0.65rem;font-weight:700;
-  letter-spacing:1px;text-transform:uppercase;
   font-family:var(--mono);
 }
 .slot-card.wet .slot-badge{background:var(--wet-dim);color:var(--wet);border:1px solid rgba(59,130,246,0.3)}
@@ -153,44 +135,20 @@ main{
 .slot-card.unknown .slot-badge{background:rgba(71,85,105,0.2);color:var(--text3);border:1px solid var(--border)}
 
 .slot-status-wrap{display:flex;align-items:center;gap:12px}
-.slot-icon{font-size:2.5rem;line-height:1;filter:drop-shadow(0 0 20px currentColor)}
-.slot-status-text{font-size:2rem;font-weight:900;letter-spacing:-1px;line-height:1;transition:color 0.4s;}
+.slot-icon{font-size:2.5rem;}
+.slot-status-text{font-size:2rem;font-weight:900;line-height:1;}
 .slot-card.wet .slot-status-text{color:var(--wet)}
 .slot-card.dry .slot-status-text{color:var(--dry)}
-.slot-card.unknown .slot-status-text{color:var(--text3)}
-.slot-conf{font-size:0.7rem;color:var(--text3);font-family:var(--mono);margin-top:4px;}
 
-.conf-bar-wrap{margin-top:16px}
-.conf-bar-label{display:flex;justify-content:space-between;font-size:0.65rem;color:var(--text3);font-family:var(--mono);margin-bottom:4px;}
-.conf-bar-bg{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;}
-.conf-bar-fill{height:100%;border-radius:2px;transition:width 1s cubic-bezier(0.4,0,0.2,1);width:0%;}
-.slot-card.wet .conf-bar-fill{background:linear-gradient(90deg,#1d4ed8,#3b82f6,#7dd3fc)}
-.slot-card.dry .conf-bar-fill{background:linear-gradient(90deg,#b45309,#f59e0b,#fcd34d)}
+.breakdown-text { font-size:0.7rem; color:var(--text3); font-family:var(--mono); margin-top:8px;}
+.inline-snap {
+  width: 100%; height: 100px; object-fit: cover; border-radius: 8px;
+  margin-top: 16px; border: 1px solid var(--border);
+}
 
-/* ── SENSORS ── */
-.sensor-panel {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 16px; padding: 24px;
-}
-.sensor-grid {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-top:16px;
-}
-.sensor-item {
-  background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px; text-align:center;
-  border: 1px solid var(--border);
-}
-.s-label { font-size:0.65rem; color:var(--text3); font-family:var(--mono); margin-bottom:4px; }
-.s-val { font-size:1.2rem; font-weight:700; color:var(--text); }
-.s-val span { font-size:0.7rem; color:var(--text3); margin-left:2px; }
-.s-glow.temp { color: #f97316; }
-.s-glow.hum { color: #38bdf8; }
-
-/* ── CONTROLS (Scan, Motor, SMS) ── */
 .controls-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
 }
-@media(max-width:768px){ .controls-grid{grid-template-columns: 1fr;} .sensor-grid{grid-template-columns: repeat(2,1fr);} }
-
 .ctrl-card {
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: 16px; padding: 24px; position:relative;
@@ -200,52 +158,48 @@ main{
   font-size: 1rem; font-weight: 700; letter-spacing:1px; cursor:pointer;
   transition: all 0.3s; color:#fff; font-family:var(--sans);
 }
-.btn-start { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 0 20px rgba(16,185,129,0.2); }
-.btn-stop { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 0 20px rgba(239,68,68,0.2); }
+.btn-start { background: linear-gradient(135deg, #10b981, #059669); }
+.btn-stop { background: linear-gradient(135deg, #ef4444, #dc2626); }
 .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); }
 .btn-outline { background: transparent; border: 1px solid var(--border); color:var(--text2); }
-.btn-outline:hover { background: rgba(255,255,255,0.05); color:var(--text); }
+.btn-outline:active { background: rgba(255,255,255,0.1); }
 
 .input-grp { display:flex; gap:8px; margin-top:12px; }
 .input-grp input {
   flex:1; background: rgba(0,0,0,0.3); border: 1px solid var(--border);
   color: var(--text); padding: 12px; border-radius: 8px; font-family: var(--mono);
 }
-.input-row { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding:8px 0; }
-.input-sm { width: 80px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 6px; text-align:center; font-family:var(--mono); }
 
-/* Status Bar */
-.status-bar {
-  display:flex; justify-content:space-between; padding: 12px 24px;
-  background: rgba(16,185,129,0.05); border: 1px solid rgba(16,185,129,0.2);
-  border-radius: 12px; color: var(--ok); font-family: var(--mono); font-size:0.8rem;
-  margin-bottom: 24px;
+.live-feed-img {
+  width:100%; border-radius:12px; border:1px solid var(--border);
+  background:#000; min-height:200px; object-fit:cover;
 }
-.status-bar.idle { background: rgba(255,255,255,0.02); border-color:var(--border); color: var(--text2); }
 
-/* Inline Snapshot */
-.inline-snap {
-  width: 100%; height: 100px; object-fit: cover; border-radius: 8px;
-  margin-top: 16px; border: 1px solid var(--border);
-  background: rgba(0,0,0,0.3); opacity: 0.5; transition: opacity 0.3s;
+.motor-btn-grp { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;}
+.motor-btn-grp button { flex:1; min-width:60px; padding:8px; border-radius:6px; cursor:pointer; font-family:var(--sans); font-weight:600;}
+
+.setting-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border2);}
+.setting-row label { font-size:0.8rem; color:var(--text2); }
+.setting-row input[type="number"], .setting-row input[type="text"] { 
+  width:80px; background:rgba(0,0,0,0.3); border:1px solid var(--border); 
+  color:#fff; padding:6px; border-radius:6px; text-align:center; font-family:var(--mono);
 }
-.slot-card.wet .inline-snap, .slot-card.dry .inline-snap { opacity: 1; }
+.setting-row input[type="checkbox"] { width:20px; height:20px; }
 
-/* Log Box */
 .log-box {
   background: #000; border: 1px solid var(--border);
-  border-radius: 12px; padding: 16px; height: 300px;
+  border-radius: 12px; padding: 16px; height: 250px;
   overflow-y: auto; font-family: var(--mono); font-size: 0.75rem;
-  display: flex; flex-direction: column; gap: 8px;
-  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+  display: flex; flex-direction: column; gap: 6px;
 }
-.log-line { display: flex; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+.log-line { display: flex; gap: 12px; }
 .log-time { color: var(--text3); min-width: 65px; }
-.log-msg { color: var(--text); }
 .log-info { color: #3b82f6; }
 .log-success { color: #10b981; }
 .log-warn { color: #f59e0b; }
 .log-error { color: #ef4444; }
+
+@media(max-width:768px){ .controls-grid{grid-template-columns: 1fr;} }
 </style>
 </head>
 <body>
@@ -253,370 +207,306 @@ main{
 <header>
   <div class="brand">
     <div class="brand-icon">👕</div>
-    <div>
-      <div class="brand-name">SmartDryer <span>/ V2</span></div>
-    </div>
+    <div class="brand-name">SmartDryer <span>/ Local V2</span></div>
   </div>
   <div class="header-right">
     <div class="live-badge" id="uvBadge" style="display:none;background:rgba(167,139,250,0.1);color:#a78bfa;border-color:rgba(167,139,250,0.3)">UV ACTIVE</div>
-    <div class="live-badge"><div class="live-dot"></div><span id="connState">CONNECTING</span></div>
+    <div class="live-badge" id="connBadge"><div class="live-dot" id="connDot"></div><span id="connState">CONNECTING</span></div>
   </div>
 </header>
 
 <main>
-  
   <div class="status-bar idle" id="systemStatus">
     <span>System Status: IDLE</span>
     <span id="lastCycle">Last cycle: —</span>
   </div>
 
-  <!-- SLOTS GRID -->
   <div>
     <div class="section-title">Drying Slots</div>
-    <div class="slots-row" id="slotsContainer">
-      <!-- Generated by JS -->
-    </div>
+    <div class="slots-row" id="slotsContainer"></div>
   </div>
 
-  <!-- SENSORS -->
-  <div class="sensor-panel">
-    <div class="section-title">Telemetry · 5x DHT Array</div>
-    <div style="display:flex;gap:32px;align-items:center;margin-bottom:16px">
-      <div>
-        <div class="s-label">AVG TEMP</div>
-        <div class="s-val s-glow temp" id="avgTemp">--<span>°C</span></div>
-      </div>
-      <div>
-        <div class="s-label">AVG HUMIDITY</div>
-        <div class="s-val s-glow hum" id="avgHum">--<span>%</span></div>
-      </div>
-    </div>
-    <div class="sensor-grid" id="sensorGrid">
-      <!-- Generated by JS -->
-    </div>
-  </div>
-
-  <!-- CONTROLS -->
   <div class="controls-grid">
     
-    <!-- SCAN CONTROL -->
+    <!-- CAMERA FEED -->
+    <div class="ctrl-card">
+      <div class="section-title">Live Camera Feed</div>
+      <img src="/video_feed" class="live-feed-img" onerror="this.src=''" alt="Camera stream" />
+    </div>
+
+    <!-- SCAN & ALERTS -->
     <div class="ctrl-card">
       <div class="section-title">Scan Control</div>
-      <button id="btnScan" class="big-btn btn-start">▶ START FULL SCAN</button>
+      <button id="btnScan" class="big-btn btn-start" onclick="toggleScan()">▶ START FULL SCAN</button>
       
-      <div style="margin-top:24px">
-        <div class="s-label" style="display:flex;justify-content:space-between">
-          <span>SCAN INTERVAL</span>
-          <span id="intervalVal">300s (5m)</span>
-        </div>
-        <input type="range" id="scanSlider" min="60" max="3600" step="60" value="300" style="width:100%;margin-top:8px">
+      <div class="section-title" style="margin-top:24px">Quick Alerts</div>
+      <div class="input-grp">
+        <input type="text" id="in_sms_recipient" placeholder="+639XXXXXXXXX">
+        <button class="btn-outline" style="width:auto;padding:0 20px" onclick="saveSettings()">SAVE</button>
       </div>
+      <label style="font-size:0.75rem;color:var(--text3);display:flex;align-items:center;gap:8px;margin-top:8px">
+        <input type="checkbox" id="in_sms_cycle" onchange="saveSettings()"> Send SMS every cycle (even if wet)
+      </label>
     </div>
 
-    <!-- SMS CONFIG -->
+    <!-- MOTOR CONTROL -->
     <div class="ctrl-card">
-      <div class="section-title">Notifications (Semaphore SMS)</div>
-      <p style="font-size:0.75rem;color:var(--text3);margin-bottom:12px">Alerts triggered when all 5 slots are completely DRY.</p>
-      <div class="input-grp">
-        <input type="text" id="smsInput" placeholder="+639XXXXXXXXX">
-        <button id="btnSaveSms" class="big-btn btn-primary" style="width:auto;padding:0 20px">SAVE</button>
+      <div class="section-title">Motor Control Panel</div>
+      <div class="motor-btn-grp">
+        <button class="btn-outline" onclick="cmd('motor_home')" style="background:rgba(255,255,0,0.1);color:#f59e0b">🏠 HOME</button>
+        <button class="btn-outline" onclick="cmd('wiggle',{direction:-1})">⬅️ WIGGLE L</button>
+        <button class="btn-outline" onclick="cmd('wiggle',{direction:1})">WIGGLE R ➡️</button>
       </div>
-      <div class="input-grp">
-        <button id="btnTestSms" class="big-btn btn-outline" style="padding:10px">SEND TEST SMS (₱0.50)</button>
+      <div class="motor-btn-grp">
+        <button class="btn-outline" onclick="cmd('motor_slot',{slot:1})">GO S1</button>
+        <button class="btn-outline" onclick="cmd('motor_slot',{slot:2})">GO S2</button>
+        <button class="btn-outline" onclick="cmd('motor_slot',{slot:3})">GO S3</button>
+        <button class="btn-outline" onclick="cmd('motor_slot',{slot:4})">GO S4</button>
+        <button class="btn-outline" onclick="cmd('motor_slot',{slot:5})">GO S5</button>
       </div>
+
+      <div class="section-title" style="margin-top:24px">Segment Tuning (ms)</div>
+      <div class="setting-row">
+        <label>Home → S1</label><input type="number" id="in_home_to_s1" value="800">
+      </div>
+      <div class="setting-row">
+        <label>S1 → S2</label><input type="number" id="in_s1_to_s2" value="800">
+      </div>
+      <div class="setting-row">
+        <label>S2 → S3</label><input type="number" id="in_s2_to_s3" value="800">
+      </div>
+      <div class="setting-row">
+        <label>S3 → S4</label><input type="number" id="in_s3_to_s4" value="800">
+      </div>
+      <div class="setting-row">
+        <label>S4 → S5</label><input type="number" id="in_s4_to_s5" value="800">
+      </div>
+      <button class="big-btn btn-primary" style="margin-top:16px;padding:12px" onclick="saveSettings()">Save Motor Calibration</button>
     </div>
 
-    <!-- MOTOR CONFIG -->
-    <div class="ctrl-card" style="grid-column: 1 / -1; max-width: 600px;">
-      <div class="section-title">L298N Motor Calibration</div>
-      <p style="font-size:0.75rem;color:var(--text3);margin-bottom:12px">Milliseconds of travel distance from the Limit Switch (Home = 0).</p>
-      <div id="motorGrid">
-        <!-- Generated by JS -->
+    <!-- LOGIC SETTINGS -->
+    <div class="ctrl-card">
+      <div class="section-title">Decision Engine Settings</div>
+      <div class="setting-row">
+        <label>Sensor Weight (0-1)</label><input type="number" step="0.1" id="in_sens_w" value="0.6">
       </div>
-      <button id="btnSaveMotor" class="big-btn btn-primary" style="margin-top:16px;padding:12px">Save Calibration</button>
+      <div class="setting-row">
+        <label>Image Weight (0-1)</label><input type="number" step="0.1" id="in_img_w" value="0.4">
+      </div>
+      <div class="setting-row">
+        <label>Wet Threshold (Hum %)</label><input type="number" id="in_wet_th" value="80">
+      </div>
+      <div class="setting-row">
+        <label>Dry Threshold (Hum %)</label><input type="number" id="in_dry_th" value="75">
+      </div>
+      <div class="setting-row">
+        <label>Dwell Time (seconds)</label><input type="number" id="in_dwell" value="5">
+      </div>
+      <div class="setting-row">
+        <label>Scan Interval (sec)</label><input type="number" id="in_scan_int" value="300">
+      </div>
+      <div class="setting-row" style="border:none">
+        <label>UV Sterilization Auto-Start</label><input type="checkbox" id="in_uv_auto">
+      </div>
+      <button class="big-btn btn-outline" style="margin-top:8px;padding:12px" onclick="saveSettings()">Apply Settings</button>
     </div>
 
     <!-- TERMINAL LOGS -->
     <div class="ctrl-card" style="grid-column: 1 / -1;">
       <div class="section-title">System Terminal</div>
-      <div class="log-box" id="logContainer">
-        <!-- Logs populated by JS -->
-      </div>
+      <div class="log-box" id="logContainer"></div>
     </div>
-
   </div>
-
 </main>
 
-<footer>SmartDryer IoT Dashboard · Realtime V2</footer>
-
-
-
-<!-- FIREBASE SDK -->
-<script type="module">
-import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, onSnapshot, collection, addDoc, serverTimestamp, query, orderBy, limit }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-// Same config as the older dashboard (ensure this points to your active database)
-const FBC = {
-  apiKey:            "AIzaSyBQV63IRXUjJQKgdcNJszKjomjdkTlgpuM",
-  authDomain:        "ehubtest-51d0a.firebaseapp.com",
-  projectId:         "ehubtest-51d0a",
-  storageBucket:     "ehubtest-51d0a.firebasestorage.app",
-  messagingSenderId: "631221590037",
-  appId:             "1:631221590037:web:5deb33cd5cc005dc56961c"
-};
-
-const app = initializeApp(FBC);
-const db  = getFirestore(app);
-
-// ── UI GENERATION ──
-function initUI() {
-  const slotsCont = document.getElementById('slotsContainer');
-  const sensorCont= document.getElementById('sensorGrid');
-  const motorCont = document.getElementById('motorGrid');
-
-  let sHtml = '', senHtml = '', mHtml = '';
-
-  for(let i=1; i<=5; i++) {
-    // Slots
-    sHtml += `
-      <div class="slot-card unknown" id="slot${i}">
-        <div class="slot-blob"></div>
-        <div class="slot-header">
-          <div>
-            <div class="slot-label">Drying Rack</div>
-            <div class="slot-number">SLOT ${i}</div>
-          </div>
-          <div class="slot-badge" id="badge${i}">WAITING</div>
-        </div>
-        <div class="slot-status-wrap">
-          <div class="slot-icon" id="icon${i}">⏳</div>
-          <div class="slot-status-text" id="status${i}">—</div>
-        </div>
-        <div class="conf-bar-wrap">
-          <div class="conf-bar-label"><span>DRY</span><span id="conf${i}">0%</span><span>WET</span></div>
-          <div class="conf-bar-bg"><div class="conf-bar-fill" id="bar${i}"></div></div>
-        </div>
-        <img src="" id="snap${i}" class="inline-snap" alt="Waiting for scan..."/>
-      </div>`;
-    
-    // Sensors
-    senHtml += `
-      <div class="sensor-item">
-        <div class="s-label">SLOT ${i}</div>
-        <div class="s-glow temp" style="font-size:1rem;margin-bottom:4px" id="stemp${i}">--<span>°C</span></div>
-        <div class="s-glow hum" style="font-size:1rem" id="shum${i}">--<span>%</span></div>
-      </div>`;
-
-    // Motor calib
-    mHtml += `
-      <div class="input-row">
-        <span class="s-label" style="margin:0;font-size:0.8rem">Slot ${i} Offset</span>
-        <div style="display:flex;gap:4px;align-items:center">
-          <button class="btn-outline" style="padding:4px 8px;border-radius:4px" onclick="adjMs(${i}, -50)">-</button>
-          <input type="number" id="ms${i}" class="input-sm" value="0">
-          <button class="btn-outline" style="padding:4px 8px;border-radius:4px" onclick="adjMs(${i}, 50)">+</button>
-          <span class="s-label" style="margin:0 0 0 4px">ms</span>
-        </div>
-      </div>`;
-  }
-  slotsCont.innerHTML = sHtml;
-  sensorCont.innerHTML= senHtml;
-  motorCont.innerHTML = mHtml;
+<script>
+// UI GENERATION
+const slotsCont = document.getElementById('slotsContainer');
+let sHtml = '';
+for(let i=1; i<=5; i++) {
+  sHtml += `
+    <div class="slot-card unknown" id="slot${i}">
+      <div class="slot-blob"></div>
+      <div class="slot-header">
+        <div><div class="slot-label">Drying Rack</div><div class="slot-number">SLOT ${i}</div></div>
+        <div class="slot-badge" id="badge${i}">WAITING</div>
+      </div>
+      <div class="slot-status-wrap">
+        <div class="slot-icon" id="icon${i}">⏳</div>
+        <div class="slot-status-text" id="status${i}">—</div>
+      </div>
+      <div class="breakdown-text" id="info${i}">Hum: --% | Temp: --°C<br/>Img: — | Sens: —</div>
+      <img src="" id="snap${i}" class="inline-snap" style="display:none" alt="Snapshot"/>
+    </div>`;
 }
-initUI();
+slotsCont.innerHTML = sHtml;
 
-// ── FIREBASE LISTENERS ──
-let slotUrls = {};
+// POLLING STATE
 let isScanning = false;
+let connError = false;
 
-// 1. Status listener
-onSnapshot(doc(db, 'system', 'status'), snap => {
-  if(!snap.exists()) return;
-  const d = snap.data();
-  document.getElementById('connState').textContent = 'LIVE';
-  
+async function fetchState() {
+  try {
+    const res = await fetch('/api/state');
+    const data = await res.json();
+    
+    if(connError) {
+      document.getElementById('connState').textContent = 'LIVE';
+      document.getElementById('connBadge').style.borderColor = 'rgba(16,185,129,0.25)';
+      document.getElementById('connState').style.color = 'var(--ok)';
+      connError = false;
+    }
+
+    updateUI(data);
+  } catch(e) {
+    connError = true;
+    document.getElementById('connState').textContent = 'OFFLINE';
+    document.getElementById('connState').style.color = '#ef4444';
+  }
+}
+
+function updateUI(d) {
+  // 1. Status Bar
   const sb = document.getElementById('systemStatus');
-  const btn= document.getElementById('btnScan');
+  const btn = document.getElementById('btnScan');
   isScanning = d.running;
 
   if(d.running) {
     sb.className = 'status-bar';
     sb.innerHTML = `<span>⚡ SCANNING... (Slot ${d.current_slot||'?'})</span>`;
-    btn.className = 'big-btn btn-stop';
-    btn.textContent = '⏹ STOP SCAN';
+    btn.className = 'big-btn btn-stop'; btn.textContent = '⏹ STOP SCAN';
   } else {
     sb.className = 'status-bar idle';
     sb.innerHTML = `<span>System Status: IDLE</span><span id="lastCycle">Last cycle: ${d.last_cycle_at||'—'}</span>`;
-    btn.className = 'big-btn btn-start';
-    btn.textContent = '▶ START FULL SCAN';
+    btn.className = 'big-btn btn-start'; btn.textContent = '▶ START FULL SCAN';
   }
 
-  document.getElementById('uvBadge').style.display = d.uv_on ? 'flex' : 'none';
-}, err => {
-  const el = document.getElementById('connState');
-  // permission-denied → Firestore rules blocking anonymous read
-  // unavailable     → network / Pi offline
-  el.textContent = err.code === 'permission-denied' ? 'RULES ERROR' : 'OFFLINE';
-  el.title = err.message;
-  console.error('[Firestore] status listener error:', err.code, err.message);
-});
+  // 2. UV Badge
+  document.getElementById('uvBadge').style.display = d.state_data?.uv_on ? 'flex' : 'none';
 
-// 2. Config listener
-onSnapshot(doc(db, 'system', 'config'), snap => {
-  if(!snap.exists()) return;
-  const d = snap.data();
-  if(d.sms_recipient && !document.getElementById('smsInput').value) {
-    document.getElementById('smsInput').value = d.sms_recipient;
-  }
-  if(d.scan_interval) {
-    document.getElementById('scanSlider').value = d.scan_interval;
-    document.getElementById('intervalVal').textContent = d.scan_interval + 's';
-  }
-  if(d.slot_steps) {
-    for(let i=1;i<=5;i++) {
-      if(d.slot_steps[i]) document.getElementById('ms'+i).value = d.slot_steps[i];
-    }
-  }
-});
-
-// 3. Sensors listener
-onSnapshot(doc(db, 'system', 'sensors'), snap => {
-  if(!snap.exists()) return;
-  const d = snap.data();
-  let sums={t:0, h:0}, count=0;
-
-  for(let i=1;i<=5;i++){
-    const sd = d[i] || d[String(i)];
-    const tempEl = document.getElementById('stemp'+i);
-    const humEl  = document.getElementById('shum'+i);
-    if(!tempEl || !humEl) continue;
-
-    if(sd && sd.online === false) {
-      // Sensor physically disconnected — show wiring error clearly
-      tempEl.innerHTML = `<span style="color:#ef4444;font-size:0.65rem">OFFLINE</span>`;
-      humEl.innerHTML  = `<span style="color:#ef4444;font-size:0.65rem">CHECK WIRING</span>`;
-    } else if(sd && sd.temperature != null) {
-      tempEl.innerHTML = `${sd.temperature.toFixed(1)}<span>°C</span>`;
-      humEl.innerHTML  = `${sd.humidity.toFixed(1)}<span>%</span>`;
-      sums.t += sd.temperature; sums.h += sd.humidity; count++;
-    }
-  }
-  if(count>0){
-    document.getElementById('avgTemp').innerHTML = `${(sums.t/count).toFixed(1)}<span>°C</span>`;
-    document.getElementById('avgHum').innerHTML  = `${(sums.h/count).toFixed(1)}<span>%</span>`;
-  }
-});
-
-// 4. Slots listener
-onSnapshot(doc(db, 'system', 'slots'), snap => {
-  if(!snap.exists()) return;
-  const d = snap.data();
-  for(let i=1; i<=5; i++){
-    const sd = d[i];
-    if(!sd) continue;
+  // 3. Settings mapping (only if inputs aren't focused)
+  if(!document.activeElement.tagName.match(/INPUT/i)) {
+    const st = d.state_data || {};
     
-    // Save URL for modal
-    if(sd.snapshot_url) slotUrls[i] = sd.snapshot_url;
+    if(st.motor_segments) {
+      document.getElementById('in_home_to_s1').value = st.motor_segments['home_to_s1'] || 800;
+      document.getElementById('in_s1_to_s2').value = st.motor_segments['s1_to_s2'] || 800;
+      document.getElementById('in_s2_to_s3').value = st.motor_segments['s2_to_s3'] || 800;
+      document.getElementById('in_s3_to_s4').value = st.motor_segments['s3_to_s4'] || 800;
+      document.getElementById('in_s4_to_s5').value = st.motor_segments['s4_to_s5'] || 800;
+    }
+    if(st.weights) {
+      document.getElementById('in_sens_w').value = st.weights.sensor;
+      document.getElementById('in_img_w').value = st.weights.image;
+    }
+    if(st.thresholds) {
+      document.getElementById('in_wet_th').value = st.thresholds.wet;
+      document.getElementById('in_dry_th').value = st.thresholds.dry;
+    }
+    if(st.toggles) {
+      document.getElementById('in_sms_cycle').checked = !!st.toggles.sms_cycle;
+      document.getElementById('in_uv_auto').checked = !!st.toggles.uv_auto;
+    }
+    document.getElementById('in_dwell').value = st.dwell_time || 5;
+    document.getElementById('in_scan_int').value = st.scan_interval || 300;
+    document.getElementById('in_sms_recipient').value = st.sms_recipient || '';
+  }
 
-    const el = document.getElementById('slot'+i);
+  // 4. Slots Mapping
+  const slots = d.state_data?.slots || {};
+  // Overlay live sensor data if scanning is not active, otherwise keep last scanned
+  const liveSensors = d.sensor_live || {};
+
+  for(let i=1; i<=5; i++) {
+    const s = slots[i] || {};
+    const live = liveSensors[i] || {};
+    
+    const card = document.getElementById('slot'+i);
     const bg = document.getElementById('badge'+i);
     const ic = document.getElementById('icon'+i);
-    const st = document.getElementById('status'+i);
-    const cf = document.getElementById('conf'+i);
-    const br = document.getElementById('bar'+i);
-    const sn = document.getElementById('snap'+i);
+    const stEl = document.getElementById('status'+i);
+    const inf = document.getElementById('info'+i);
+    const snp = document.getElementById('snap'+i);
 
-    const isWet = sd.label==='WET';
-    const isDry = sd.label==='DRY';
-    
-    el.className = 'slot-card ' + (isWet?'wet':isDry?'dry':'unknown');
+    const isWet = s.label==='WET';
+    const isDry = s.label==='DRY';
+    card.className = 'slot-card ' + (isWet?'wet':isDry?'dry':'unknown');
     bg.textContent = isWet?'💧 WET':isDry?'☀️ DRY':'WAITING';
     ic.textContent = isWet?'💧':isDry?'☀️':'⏳';
-    st.textContent = sd.label;
+    stEl.textContent = s.label || '—';
+
+    // Show live sensor data if available, fallback to snapshot
+    let h = s.sensor_hum; let t = s.sensor_temp;
+    if(live.humidity != null) { h = live.humidity; t = live.temperature; }
     
-    if(sd.snapshot_url) {
-      sn.src = sd.snapshot_url;
+    let bd = s.breakdown || {};
+    inf.innerHTML = `Hum: ${h?h.toFixed(1)+'%':'--'} | Temp: ${t?t.toFixed(1)+'°C':'--'}<br/>Img: ${bd.image_label||'—'} | Sens: ${bd.sensor_label||'—'} | Wght: ${s.confidence ? (s.confidence*100).toFixed(0)+'%' : '--'}`;
+    
+    if(s.snapshot_url) {
+      // Add random cache-busting param to image
+      snp.src = s.snapshot_url + "?t=" + new Date().getTime();
+      snp.style.display = 'block';
     }
-
-    const pct = Math.round((sd.confidence||0)*100);
-    cf.textContent = pct + '%';
-    br.style.width = pct + '%';
   }
-});
 
-// 5. System Logs listener
-const logsRef = collection(db, 'system_logs');
-const qLogs = query(logsRef, orderBy('created_at', 'desc'), limit(30));
-onSnapshot(qLogs, snap => {
-  const logCont = document.getElementById('logContainer');
-  let html = '';
-  snap.docs.forEach(doc => {
-    const d = doc.data();
-    if(!d.created_at) return;
-    const timeStr = d.created_at.toDate().toLocaleTimeString([], {hour12:false});
-    const lvlClass = d.level ? d.level.toLowerCase() : 'info';
-    html += `
-      <div class="log-line">
-        <div class="log-time">[${timeStr}]</div>
-        <div class="log-msg log-${lvlClass}">${d.message}</div>
-      </div>
-    `;
-  });
-  logCont.innerHTML = html;
-});
-
-// ── COMMAND SENDER ──
-async function sendCommand(type, payload={}) {
-  try {
-    await addDoc(collection(db, 'commands'), {
-      type: type,
-      payload: payload,
-      timestamp: serverTimestamp(),
-      status: 'pending'
+  // 5. System Logs
+  if(d.logs) {
+    const lc = document.getElementById('logContainer');
+    let html = '';
+    d.logs.forEach(lg => {
+      const ts = new Date(lg.created_at).toLocaleTimeString([], {hour12:false});
+      const cls = lg.level ? lg.level.toLowerCase() : 'info';
+      html += `<div class="log-line"><div class="log-time">[${ts}]</div><div class="log-msg log-${cls}">${lg.message}</div></div>`;
     });
-  } catch(e) {
-    alert('Command failed: ' + e.message);
+    lc.innerHTML = html;
   }
 }
 
-// ── BINDINGS ──
-window.adjMs = function(slot, amount) {
-  const el = document.getElementById('ms'+slot);
-  el.value = parseInt(el.value || 0) + amount;
-};
+// ── ACTION COMMANDS ──
+async function cmd(command, payload={}) {
+  await fetch('/api/command', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ command, ...payload })
+  });
+  fetchState();
+}
 
-document.getElementById('btnScan').onclick = ()=>{
-  sendCommand(isScanning ? 'scan_stop' : 'scan_start');
-};
+function toggleScan() {
+  cmd(isScanning ? 'scan_stop' : 'scan_start');
+}
 
-document.getElementById('btnTestSms').onclick = ()=>{
-  const p = document.getElementById('smsInput').value;
-  if(!p) return alert('Enter a phone number first');
-  sendCommand('sms_test', {number: p});
-  alert('SMS Dispatch requested via RPI');
-};
+function saveSettings() {
+  const payload = {
+    motor_segments: {
+      home_to_s1: document.getElementById('in_home_to_s1').value,
+      s1_to_s2: document.getElementById('in_s1_to_s2').value,
+      s2_to_s3: document.getElementById('in_s2_to_s3').value,
+      s3_to_s4: document.getElementById('in_s3_to_s4').value,
+      s4_to_s5: document.getElementById('in_s4_to_s5').value,
+    },
+    weights: {
+      sensor: document.getElementById('in_sens_w').value,
+      image: document.getElementById('in_img_w').value
+    },
+    thresholds: {
+      wet: document.getElementById('in_wet_th').value,
+      dry: document.getElementById('in_dry_th').value
+    },
+    toggles: {
+      sms_cycle: document.getElementById('in_sms_cycle').checked,
+      uv_auto: document.getElementById('in_uv_auto').checked
+    },
+    dwell_time: document.getElementById('in_dwell').value,
+    scan_interval: document.getElementById('in_scan_int').value,
+    sms_recipient: document.getElementById('in_sms_recipient').value
+  };
+  cmd('update_settings', payload);
+}
 
-document.getElementById('btnSaveSms').onclick = ()=>{
-  const p = document.getElementById('smsInput').value;
-  sendCommand('update_sms_recipient', {number: p});
-  alert('Saved to backend');
-};
-
-document.getElementById('btnSaveMotor').onclick = ()=>{
-  let steps = {};
-  for(let i=1;i<=5;i++) steps[i] = parseInt(document.getElementById('ms'+i).value||0);
-  sendCommand('update_config', {slot_steps: steps});
-  alert('Motor calibration saved');
-};
-
-document.getElementById('scanSlider').onchange = (e)=>{
-  const v = e.target.value;
-  document.getElementById('intervalVal').textContent = v + 's';
-  sendCommand('update_config', {scan_interval: parseInt(v)});
-};
+// Poll state every 1.5 seconds
+setInterval(fetchState, 1500);
+fetchState();
 </script>
 </body>
 </html>

@@ -1,24 +1,19 @@
-# scan_controller.py — Core Scanning Brain
+# scan_controller.py — Core Scanning Brain (Local-First)
 #
 # Full scan loop:
 #   1. UV relay OFF  (safe to scan)
-#   2. Iterate slots 1→5: move motor → capture → classify → store result
-#      → Upload JPEG snapshot to Firebase Storage after each slot
-#      → Push slot result to Firestore after each slot
+#   2. Iterate slots 1→5: move motor → wait dwell time → capture → read sensor → classify
+#      → Save JPEG snapshot locally
 #   3. Return motor home
-#   4. Post-cycle: all-dry check → SMS + buzzer
-#      → Push scan history to Firestore
-#   5. UV relay ON  (sterilization during idle interval)
-#   6. Wait scan interval
-#   7. Repeat
-#
-# Dashboard commands (via Firestore) are handled in _handle_command().
+#   4. Post-cycle: evaluate all-dry -> UV / SMS
+#   5. Wait scan interval
+#   6. Repeat
 
 import time
 import threading
 import logging
 import datetime
-
+import os
 import cv2
 
 from config import TOTAL_SLOTS, MIN_SCAN_INTERVAL_SECONDS, MAX_SCAN_INTERVAL_SECONDS
@@ -27,14 +22,14 @@ from modules.motor        import motor
 from modules.buzzer       import buzzer
 from modules.relay        import relay
 from modules.sms          import sms
-from modules.firestore_sync import (
-    push_status, push_slots, push_scan_history,
-    upload_snapshot, start_command_listener, push_log
-)
+from modules.sensor       import sensor
 import state_store
 
 logger = logging.getLogger(__name__)
 
+# Directory for local snapshots
+SNAP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "smart-dryer-web", "snapshots")
+os.makedirs(SNAP_DIR, exist_ok=True)
 
 class ScanController:
     def __init__(self):
@@ -42,81 +37,98 @@ class ScanController:
         self._running      = False
         self._stop_event   = threading.Event()
         self._thread       = None
-        self._camera       = None
         self._current_slot = None
+        self.system_logs   = []
 
         # Restore persisted calibration
-        saved_steps = self._state.get("slot_steps", {})
-        for slot_str, steps in saved_steps.items():
-            motor.set_slot_steps(int(slot_str), int(steps))
+        saved_segments = self._state.get("motor_segments", {})
+        for seg, ms in saved_segments.items():
+            motor.set_segment(seg, int(ms))
 
         # Restore SMS recipient
         if self._state.get("sms_recipient"):
             sms.set_recipient(self._state["sms_recipient"])
 
-    # ── Camera ────────────────────────────────────────────────────────────────
-    def _open_camera(self) -> bool:
-        if self._camera and self._camera.isOpened():
-            return True
-        self._camera = cv2.VideoCapture(0)
-        if not self._camera.isOpened():
-            logger.error("Cannot open camera.")
-            return False
-        logger.info("Camera opened.")
-        return True
-
-    def _capture_frame(self):
-        if not self._open_camera():
-            return None
-        for _ in range(3):   # Discard stale frames
-            self._camera.read()
-        ret, frame = self._camera.read()
-        if not ret:
-            logger.error("Frame capture failed.")
-            return None
-        return frame
-
-    def _release_camera(self):
-        if self._camera:
-            self._camera.release()
-            self._camera = None
+    def _log_event(self, msg: str, level: str = 'INFO'):
+        ts = datetime.datetime.now().isoformat()
+        self.system_logs.insert(0, {'created_at': ts, 'message': msg, 'level': level})
+        if len(self.system_logs) > 30:
+            self.system_logs.pop()
+        logger.info(f"[{level}] {msg}")
 
     # ── Single slot scan ──────────────────────────────────────────────────────
-    def _scan_slot(self, slot: int) -> dict | None:
-        logger.info(f"── Scanning slot {slot} ──")
+    def _scan_slot(self, slot: int, global_camera) -> dict | None:
+        self._log_event(f"Scanning slot {slot}", "INFO")
         self._current_slot = slot
-
-        # Notify Firestore: currently scanning this slot
-        push_status({'current_slot': slot, 'system_status': 'scanning', 'running': True})
+        self._state["system_status"] = "scanning"
 
         if not motor.move_to_slot(slot):
-            logger.error(f"Motor failed to reach slot {slot}")
+            self._log_event(f"Motor failed to reach slot {slot}", "ERROR")
             buzzer.error()
-            push_status({'buzzer_last': 'error'})
             return None
 
-        time.sleep(0.5)   # Settle after motor stops
+        dwell_time = self._state.get("dwell_time", 5)
+        time.sleep(dwell_time)  # Stabilize before reading
 
-        frame = self._capture_frame()
-        if frame is None:
-            return None
+        # Capture Image
+        frame = global_camera.read_latest() if global_camera else None
+        snapshot_url = None
+        label_img = "UNKNOWN"
+        conf_img = 0.0
 
-        result = classify(frame)
-        msg = f"Slot {slot}: {result['label']} ({result['confidence']:.1%})"
-        if result.get("simulated"): msg += " [SIM]"
-        logger.info(msg)
-        push_log(msg)
+        if frame is not None:
+            # Save local snapshot
+            path = os.path.join(SNAP_DIR, f"slot_{slot}.jpg")
+            cv2.imwrite(path, frame)
+            snapshot_url = f"/snapshots/slot_{slot}.jpg"
+            
+            result = classify(frame)
+            label_img = result['label']
+            conf_img = result['confidence']
 
-        # Upload snapshot to Firebase Storage
-        snapshot_url = upload_snapshot(slot, frame) if frame is not None else None
+        # Read Sensor
+        sensor_data = sensor.read(slot)
+        hum = sensor_data.get('humidity') if sensor_data else None
+        
+        # Hysteresis Logic
+        prev_label = self._state["slots"][str(slot)].get("label", "UNKNOWN")
+        wet_thresh = self._state.get("thresholds", {}).get("wet", 80)
+        dry_thresh = self._state.get("thresholds", {}).get("dry", 75)
+        
+        label_sensor = "UNKNOWN"
+        if hum is not None:
+            if hum >= wet_thresh:
+                label_sensor = "WET"
+            elif hum <= dry_thresh:
+                label_sensor = "DRY"
+            else:
+                label_sensor = "WET" if prev_label == "WET" else "DRY"
 
-        result['snapshot_url'] = snapshot_url
-        return result
+        # Fusion Logic
+        w_sens = self._state.get("weights", {}).get("sensor", 0.6)
+        w_img  = self._state.get("weights", {}).get("image", 0.4)
+
+        score_sens = 1.0 if label_sensor == "WET" else 0.0
+        score_img  = 1.0 if label_img == "WET" else 0.0
+
+        final_score = (score_sens * w_sens) + (score_img * w_img)
+        final_label = "WET" if final_score > 0.5 else "DRY"
+
+        msg = f"Slot {slot}: Score {final_score:.2f} ({final_label}) | Img:{label_img} Sens:{label_sensor} Hum:{hum}%"
+        self._log_event(msg, "INFO")
+
+        return {
+            "label": final_label,
+            "confidence": max(final_score, 1 - final_score), # Pseudo-confidence
+            "snapshot_url": snapshot_url,
+            "sensor_hum": hum,
+            "sensor_temp": sensor_data.get('temperature') if sensor_data else None,
+            "breakdown": {"image_label": label_img, "sensor_label": label_sensor}
+        }
 
     # ── Full scan cycle ───────────────────────────────────────────────────────
-    def _run_cycle(self):
-        logger.info("═══ Starting scan cycle ═══")
-        push_log("Starting scan cycle...", 'INFO')
+    def _run_cycle(self, global_camera):
+        self._log_event("Starting scan cycle...", 'INFO')
         self._state["system_status"] = "scanning"
         sms.reset_sent_flag()
         state_store.save(self._state)
@@ -125,106 +137,86 @@ class ScanController:
 
         for slot in range(1, TOTAL_SLOTS + 1):
             if self._stop_event.is_set():
-                logger.info("Scan aborted mid-cycle.")
+                self._log_event("Scan aborted mid-cycle.", "WARN")
                 break
 
-            result = self._scan_slot(slot)
-            ts     = datetime.datetime.now().isoformat()
+            result = self._scan_slot(slot, global_camera)
+            ts = datetime.datetime.now().isoformat()
 
             if result:
                 slot_data = {
                     "label":        result["label"],
                     "confidence":   round(result["confidence"], 4),
-                    "simulated":    result.get("simulated", False),
                     "last_scanned": ts,
                     "snapshot_url": result.get("snapshot_url"),
+                    "sensor_hum":   result.get("sensor_hum"),
+                    "sensor_temp":  result.get("sensor_temp"),
+                    "breakdown":    result.get("breakdown")
                 }
                 self._state["slots"][str(slot)] = slot_data
                 cycle_results[slot] = result["label"]
             else:
-                # Keep last known state on read error
                 self._state["slots"][str(slot)]["last_scanned"] = ts
-                cycle_results[slot] = (
-                    self._state["slots"][str(slot)].get("label")
-                )
+                cycle_results[slot] = self._state["slots"][str(slot)].get("label")
 
             state_store.save(self._state)
-            # Push updated slot data to Firestore
-            push_slots({str(k): v for k, v in self._state["slots"].items()})
 
+        # Implicit homing at end of cycle for repeatable accuracy
         motor.home()
-        self._release_camera()
         self._current_slot = None
 
         # ── Post-cycle checks ─────────────────────────────────────────────
         all_dry = all(v == "DRY" for v in cycle_results.values() if v)
         self._state["last_cycle_at"] = datetime.datetime.now().isoformat()
 
-        if all_dry and not self._state.get("all_dry_notified"):
-            logger.info("All slots DRY — notifying.")
-            push_log("All slots are DRY. Firing notifications.", 'SUCCESS')
-            buzzer.drying_complete()
-            push_status({'buzzer_last': 'drying_complete'})
+        # SMS Logic
+        sms_every = self._state.get("toggles", {}).get("sms_cycle", False)
+        if (all_dry and not self._state.get("all_dry_notified")) or sms_every:
+            self._log_event("Triggering SMS notifications.", 'SUCCESS')
+            if all_dry:
+                buzzer.drying_complete()
             sent = sms.send_drying_complete()
             if sent:
-                push_log(f"SMS Alert sent to {self._state.get('sms_recipient','')}", 'SUCCESS')
-            self._state["all_dry_notified"] = sent
+                self._log_event(f"SMS Alert sent to {self._state.get('sms_recipient','')}", 'SUCCESS')
+            self._state["all_dry_notified"] = sent if all_dry else self._state.get("all_dry_notified")
         elif not all_dry:
             self._state["all_dry_notified"] = False
 
         self._state["system_status"] = "idle"
         state_store.save(self._state)
+        self._log_event("Scan cycle complete.", "INFO")
 
-        # Push final status + scan history to Firestore
-        push_status({
-            'running': True,
-            'system_status': 'idle',
-            'current_slot': None,
-            'last_cycle_at': self._state['last_cycle_at'],
-            'all_dry_notified': self._state.get('all_dry_notified', False),
-            'uv_on': False,
-        })
-
-        from modules.sensor import sensor
-        sensor_snapshot = {
-            str(k): {
-                'temperature': v.get('temperature'),
-                'humidity':    v.get('humidity'),
-            }
-            for k, v in sensor.read_all().items()
-        }
-        push_scan_history(
-            slots_result={str(k): {'label': v} for k, v in cycle_results.items()},
-            all_dry=all_dry,
-            sensor_snapshot=sensor_snapshot,
-        )
-        logger.info("═══ Scan cycle complete ═══")
+        # UV Logic
+        uv_auto = self._state.get("toggles", {}).get("uv_auto", False)
+        if all_dry and uv_auto:
+            self._log_event("Clothes DRY and UV Auto enabled. Activating UV.", "SUCCESS")
+            relay.on()
+            self._state["uv_on"] = True
+        else:
+            relay.off()
+            self._state["uv_on"] = False
 
     # ── Main loop ─────────────────────────────────────────────────────────────
-    def _loop(self):
+    def _loop(self, global_camera):
         while not self._stop_event.is_set():
-            # UV OFF during scan
             relay.off()
+            self._state["uv_on"] = False
 
             try:
-                self._run_cycle()
+                self._run_cycle(global_camera)
             except Exception as e:
                 logger.exception(f"Scan cycle crashed: {e}")
-                push_log(f"System error: {e}", 'ERROR')
+                self._log_event(f"System error: {e}", 'ERROR')
                 buzzer.error()
                 self._state["system_status"] = "error"
                 state_store.save(self._state)
 
             if self._stop_event.is_set():
-                push_log("Scan manually stopped.", 'WARN')
                 break
 
-            relay.on()
-            push_status({'uv_on': True})
             interval = self._state.get("scan_interval", 300)
-            msg = f"UV Sterilization ON. Next scan in {interval}s."
-            logger.info(msg)
-            push_log(msg)
+            msg = f"Idle wait. Next scan in {interval}s."
+            self._log_event(msg, "INFO")
 
             waited = 0
             while waited < interval and not self._stop_event.is_set():
@@ -232,93 +224,38 @@ class ScanController:
                 waited += 1
 
         relay.off()
-        push_status({'uv_on': False, 'running': False, 'system_status': 'idle'})
-        self._release_camera()
+        self._state["uv_on"] = False
+        self._state["running"] = False
         self._state["system_status"] = "idle"
         state_store.save(self._state)
-        logger.info("Scan loop stopped.")
-
-    # ── Command handler (called by Firestore listener) ────────────────────────
-    def handle_command(self, cmd_type: str, payload: dict):
-        logger.info(f'Firestore command received: {cmd_type} payload={payload}')
-
-        if cmd_type == 'scan_start':
-            self.start()
-
-        elif cmd_type == 'scan_stop':
-            self.stop()
-
-        elif cmd_type == 'sms_test':
-            number = payload.get('number', '').strip()
-            if number:
-                sms.send_custom(number, 'Smart Dryer test message — system online ✅')
-            else:
-                logger.warning('sms_test command missing number')
-
-        elif cmd_type == 'update_sms_recipient':
-            number = payload.get('number', '').strip()
-            if number:
-                self.set_sms_number(number)
-
-        elif cmd_type == 'update_config':
-            if 'scan_interval' in payload:
-                self.set_interval(int(payload['scan_interval']))
-            if 'slot_steps' in payload:
-                for slot_str, ms in payload['slot_steps'].items():
-                    self.set_motor_calibration(int(slot_str), int(ms))
-
-        else:
-            logger.warning(f'Unknown command type: {cmd_type}')
+        self._log_event("Scan loop stopped.", "INFO")
 
     # ── Public control ────────────────────────────────────────────────────────
-    def start(self) -> bool:
+    def start(self, global_camera=None) -> bool:
         if self._running:
-            logger.warning("Scan already running.")
             return False
         self._stop_event.clear()
         self._running = True
+        self._state["running"] = True
         self._thread  = threading.Thread(
-            target=self._loop, daemon=True, name="scan-loop"
+            target=self._loop, args=(global_camera,), daemon=True, name="scan-loop"
         )
         self._thread.start()
-        push_status({'running': True, 'system_status': 'scanning'})
-        logger.info("Scan controller started.")
+        self._log_event("Scan controller started.", "INFO")
         return True
 
     def stop(self) -> bool:
         if not self._running:
             return False
-        logger.info("Stopping scan controller...")
+        self._log_event("Stopping scan controller...", "WARN")
         self._stop_event.set()
         if self._thread:
             self._thread.join(timeout=10)
         self._running = False
+        self._state["running"] = False
         relay.off()
-        push_status({'running': False, 'system_status': 'idle', 'uv_on': False})
+        self._state["uv_on"] = False
         return True
-
-    def set_interval(self, seconds: int) -> bool:
-        seconds = max(
-            MIN_SCAN_INTERVAL_SECONDS,
-            min(MAX_SCAN_INTERVAL_SECONDS, int(seconds))
-        )
-        self._state["scan_interval"] = seconds
-        state_store.save(self._state)
-        logger.info(f"Scan interval set to {seconds}s")
-        return True
-
-    def set_motor_calibration(self, slot: int, steps: int) -> bool:
-        if slot not in range(1, TOTAL_SLOTS + 1):
-            return False
-        motor.set_slot_steps(slot, steps)
-        self._state["slot_steps"][str(slot)] = steps
-        state_store.save(self._state)
-        return True
-
-    def set_sms_number(self, number: str):
-        sms.set_recipient(number)
-        self._state["sms_recipient"] = number
-        state_store.save(self._state)
 
     def get_status(self) -> dict:
         self._state = state_store.load()
@@ -330,13 +267,10 @@ class ScanController:
             "last_cycle_at":    self._state.get("last_cycle_at"),
             "all_dry_notified": self._state.get("all_dry_notified"),
             "sms_recipient":    self._state.get("sms_recipient", ""),
-            "calibration":      motor.get_calibration(),
+            "calibration":      motor.get_segments(),
+            "logs":             self.system_logs,
+            "state_data":       self._state
         }
-
-    def get_slots(self) -> dict:
-        self._state = state_store.load()
-        return self._state.get("slots", {})
-
 
 # Singleton
 scanner = ScanController()

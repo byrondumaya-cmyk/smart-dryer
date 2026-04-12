@@ -21,7 +21,7 @@ except ImportError:
 
 from config import (
     GPIO_PINS,
-    DEFAULT_SLOT_STEPS,
+    DEFAULT_MOTOR_SEGMENTS,
     MOTOR_PWM_FREQ,
     MOTOR_PWM_SPEED,
     MOTOR_HOME_TIMEOUT,
@@ -33,8 +33,8 @@ _lock = threading.Lock()
 
 class MotorController:
     def __init__(self):
-        self.slot_ms = dict(DEFAULT_SLOT_STEPS)   # ms from home per slot
-        self.current_position_ms = 0              # track time-based position
+        self.segments = dict(DEFAULT_MOTOR_SEGMENTS)   # ms segments between slots
+        self.current_position_ms = 0                   # track time-based position
         self._pwm = None
         self._setup_gpio()
 
@@ -113,17 +113,26 @@ class MotorController:
                 logger.error(f"Homing error: {e}")
                 return False
 
+    def _get_slot_ms(self, slot: int) -> int:
+        pos = 0
+        if slot >= 1: pos += self.segments.get('home_to_s1', 800)
+        if slot >= 2: pos += self.segments.get('s1_to_s2', 800)
+        if slot >= 3: pos += self.segments.get('s2_to_s3', 800)
+        if slot >= 4: pos += self.segments.get('s3_to_s4', 800)
+        if slot >= 5: pos += self.segments.get('s4_to_s5', 800)
+        return pos
+
     # ── Public: Move to slot ──────────────────────────────────────────────────
     def move_to_slot(self, slot: int) -> bool:
         """
         Move to `slot` position using time-based drive from current position.
-        slot_ms values are milliseconds from home.
+        Position is calculated by summing segments.
         """
-        if slot not in self.slot_ms:
+        if slot not in range(1, 6):
             logger.error(f"Invalid slot: {slot}")
             return False
 
-        target_ms = self.slot_ms[slot]
+        target_ms = self._get_slot_ms(slot)
         delta_ms  = target_ms - self.current_position_ms
 
         with _lock:
@@ -156,14 +165,44 @@ class MotorController:
                 logger.error(f"Motor move failed: {e}")
                 return False
 
-    # ── Calibration ───────────────────────────────────────────────────────────
-    def set_slot_steps(self, slot: int, steps: int):
-        """Update timing (ms) for a slot. Called 'steps' in API for compat."""
-        self.slot_ms[slot] = max(0, int(steps))
-        logger.info(f"Calibration: slot {slot} → {self.slot_ms[slot]}ms")
+    # ── Public: Wiggle ────────────────────────────────────────────────────────
+    def wiggle(self, direction: int, duration_ms: int = 150) -> bool:
+        """
+        Jog motor for manual alignment.
+        direction: 1 (forward), -1 (backward)
+        """
+        with _lock:
+            try:
+                if not _GPIO_AVAILABLE:
+                    logger.info(f"[SIM] Wiggled {direction} for {duration_ms}ms.")
+                    return True
+                
+                if direction > 0:
+                    self._forward()
+                else:
+                    self._backward()
+                
+                time.sleep(duration_ms / 1000.0)
+                self._stop()
+                
+                # Note: this alters actual position, but since it's just a manual
+                # wiggle we don't strictly update current_position_ms because a 
+                # calibration cycle will likely home immediately after anyway.
+                logger.info(f"Motor wiggled direction: {direction}")
+                return True
+            except Exception as e:
+                self._stop()
+                logger.error(f"Wiggle failed: {e}")
+                return False
 
-    def get_calibration(self) -> dict:
-        return dict(self.slot_ms)
+    # ── Calibration ───────────────────────────────────────────────────────────
+    def set_segment(self, segment: str, ms: int):
+        if segment in self.segments:
+            self.segments[segment] = max(0, int(ms))
+            logger.info(f"Calibration: segment {segment} → {self.segments[segment]}ms")
+
+    def get_segments(self) -> dict:
+        return dict(self.segments)
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     def cleanup(self):
