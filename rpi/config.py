@@ -69,15 +69,9 @@ MAX_SCAN_INTERVAL_SECONDS     = 3600
 # --- DHT Sensor ---
 DHT_READ_INTERVAL = 10   # Seconds between full 5-sensor poll cycles
 
-# --- Local File Paths ---
-MODEL_CACHE_PATH       = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "ai", "model_cache", "best.pt"
-)
 
-# --- SMS (Semaphore PH) ---
+
 SMS_API_URL = "https://api.semaphore.co/api/v4/messages"
-SMS_API_KEY = "YOUR_API_KEY_HERE"   # Override via dashboard
-SMS_SENDER  = "SmartDryer"
 
 # --- Flask API ---
 API_HOST = "0.0.0.0"

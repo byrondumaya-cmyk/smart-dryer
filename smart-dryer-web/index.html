@@ -218,9 +218,31 @@ main{
 }
 
 @media(max-width:768px){ .controls-grid{grid-template-columns: 1fr;} }
+
+/* Toast Notifications */
+#toastContainer {
+  position:fixed; bottom:24px; right:24px; z-index:9999;
+  display:flex; flex-direction:column-reverse; gap:8px;
+  pointer-events:none;
+}
+.toast {
+  pointer-events:auto;
+  padding:12px 20px; border-radius:10px;
+  font-family:var(--mono); font-size:0.8rem; font-weight:500;
+  color:#fff; backdrop-filter:blur(12px);
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+  max-width:320px; box-shadow:0 4px 24px rgba(0,0,0,0.4);
+}
+.toast.info    { background:rgba(59,130,246,0.85); }
+.toast.success { background:rgba(16,185,129,0.85); }
+.toast.warn    { background:rgba(245,158,11,0.85); color:#000; }
+.toast.error   { background:rgba(239,68,68,0.85); }
+@keyframes toastIn  { from{opacity:0;transform:translateX(40px)} to{opacity:1;transform:translateX(0)} }
+@keyframes toastOut { from{opacity:1} to{opacity:0;transform:translateY(10px)} }
 </style>
 </head>
 <body>
+<div id="toastContainer"></div>
 
 <header>
   <div class="brand">
@@ -423,7 +445,13 @@ function updateUI(d) {
   // 1. Status Bar
   const sb = document.getElementById('systemStatus');
   const btn = document.getElementById('btnScan');
+  const wasScanning = isScanning;
   isScanning = d.running;
+
+  // Toast on status transitions
+  if(!wasScanning && isScanning) showToast('⚡ Cycle started!', 'info');
+  if(wasScanning && !isScanning) showToast('✅ Cycle complete.', 'success');
+  if(d.system_status === 'error' && !wasScanning) showToast('⚠️ System error occurred.', 'error');
 
   if(d.running) {
     sb.className = 'status-bar';
@@ -542,13 +570,45 @@ function updateUI(d) {
   }
 }
 
+// ── TOAST NOTIFICATIONS ──
+const TOAST_LABELS = {
+  'scan_start':    ['▶ Scan cycle starting...', 'info'],
+  'scan_stop':     ['⏹ Scan stopped.', 'warn'],
+  'wiggle':        ['↔️ Motor wiggled.', 'info'],
+  'motor_home':    ['🏠 Homing motor...', 'info'],
+  'motor_slot':    ['🎯 Moving to slot...', 'info'],
+  'update_settings': ['✅ Settings saved.', 'success'],
+  'test_buzzer':   ['🔊 Buzzer test fired.', 'info'],
+  'test_relay':    ['💡 UV relay test (3s)...', 'info'],
+  'test_sms':      ['📲 Sending test SMS...', 'info'],
+};
+
+function showToast(msg, type='info') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3100);
+}
+
 // ── ACTION COMMANDS ──
 async function cmd(command, payload={}) {
-  await fetch('/api/command', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ command, ...payload })
-  });
+  const [label, type] = TOAST_LABELS[command] || [command, 'info'];
+  showToast(label, type);
+  try {
+    const res = await fetch('/api/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command, ...payload })
+    });
+    const data = await res.json();
+    if(!res.ok) {
+      showToast(data.error || 'Command failed', 'error');
+    }
+  } catch(e) {
+    showToast('Network error', 'error');
+  }
   fetchState();
 }
 

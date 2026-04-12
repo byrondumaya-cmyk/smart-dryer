@@ -225,8 +225,6 @@ class SensorModule:
 
     # ── Polling loop ──────────────────────────────────────────────────────────
     def _poll(self):
-        from modules.firestore_sync import push_sensors
-
         if _DRIVER == 'pigpio':
             # Trigger all sensors first, then wait, then read — pipeline reads
             # so all sensors are sampling in parallel (no sequential blocking).
@@ -237,7 +235,6 @@ class SensorModule:
                     if self._stop_event.is_set():
                         break
                     self._read_slot_pigpio(slot_id)
-                push_sensors(self.read_all())
                 time.sleep(DHT_READ_INTERVAL)
         else:
             # adafruit / simulation: sequential with gaps
@@ -247,7 +244,6 @@ class SensorModule:
                         break
                     self._read_slot_legacy(slot_id)
                     time.sleep(0.5)
-                push_sensors(self.read_all())
                 time.sleep(DHT_READ_INTERVAL)
 
     def _trigger_all(self):
