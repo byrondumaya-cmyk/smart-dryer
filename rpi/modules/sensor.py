@@ -84,26 +84,37 @@ class SensorModule:
             })
             return
 
-        try:
-            dev = self._devices[slot_id]
-            self._data[slot_id].update({
-                'temperature': dev.temperature,
-                'humidity':    dev.humidity,
-                'last_read':   time.time(),
-                'error':       None,
-            })
-            logger.debug(
-                f"Slot {slot_id}: "
-                f"{self._data[slot_id]['temperature']}°C  "
-                f"{self._data[slot_id]['humidity']}%"
-            )
-        except RuntimeError as e:
-            # DHT sensors occasionally miss reads — non-fatal
-            self._data[slot_id]['error'] = str(e)
-            logger.warning(f"Slot {slot_id} read error (retry next cycle): {e}")
-        except Exception as e:
-            self._data[slot_id]['error'] = str(e)
-            logger.error(f"Slot {slot_id} unexpected error: {e}")
+        dev = self._devices[slot_id]
+        success = False
+        
+        # Pi 4 specific: DHT sensors are very timing sensitive. 
+        # We try 3 times with a 2s gap between attempts.
+        for attempt in range(3):
+            try:
+                # Note: adafruit_dht properties trigger a physical read
+                t = dev.temperature
+                h = dev.humidity
+                
+                if t is not None and h is not None:
+                    self._data[slot_id].update({
+                        'temperature': t,
+                        'humidity':    h,
+                        'last_read':   time.time(),
+                        'error':       None,
+                    })
+                    success = True
+                    break
+            except RuntimeError as e:
+                # Checksum errors or 'Timed out' are common. Retry.
+                logger.warning(f"Slot {slot_id} read attempt {attempt+1} failed: {e}")
+                time.sleep(2.0)
+            except Exception as e:
+                logger.error(f"Slot {slot_id} unexpected hardware error: {e}")
+                break
+        
+        if not success:
+            logger.error(f"Slot {slot_id} failed to read after 3 attempts.")
+            self._data[slot_id]['error'] = "Persistent read error"
 
     # ── Public Interface ──────────────────────────────────────────────────────
     def start(self):

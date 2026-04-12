@@ -46,6 +46,10 @@ def main():
         'slot_steps':    state.get('slot_steps', {str(k): v for k, v in DEFAULT_SLOT_STEPS.items()}),
     })
 
+    # Signal that system is online and ready
+    from modules.firestore_sync import push_status
+    push_status({'running': False, 'system_status': 'idle', 'current_slot': None})
+
     # Start the local file server (serves the dashboard.html locally)
     server_thread = threading.Thread(target=start_web_server, daemon=True)
     server_thread.start()
