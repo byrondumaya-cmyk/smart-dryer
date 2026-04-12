@@ -14,5 +14,4 @@ try:
         time.sleep(0.1)
 except KeyboardInterrupt:
     GPIO.cleanup()
-    print('
-Done.')
+    print('\nDone.')
