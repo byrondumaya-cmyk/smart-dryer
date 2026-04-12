@@ -1,0 +1,53 @@
+============================================
+  WET/DRY CLOTHES DETECTOR - SETUP GUIDE
+============================================
+
+1. CAMERA POSITIONING
+   - Mount your webcam above or directly in front of the hanger
+   - Keep the camera 2-3 feet away from the garment
+   - Ensure the full garment is visible in the frame
+
+2. PORTRAIT ORIENTATION
+   - Mount the camera in its normal landscape position
+   - The script automatically rotates the feed 90 degrees
+   - Use the 'p' key to toggle portrait mode if needed
+
+3. LIGHTING
+   - Use bright, even, diffused lighting from the front
+   - Avoid backlighting (no windows or bright lights behind the garment)
+   - Consistent lighting helps the model detect wet/dry accurately
+
+4. BACKGROUND
+   - Use a plain, light-colored wall or sheet behind the garment
+   - Avoid busy patterns or cluttered backgrounds
+   - High contrast between garment and background improves detection
+
+5. GARMENT POSITIONING
+   - Hang the garment on a hanger at a stable height
+   - Spread the garment evenly so all areas are visible
+   - Ensure the full garment fits within the camera frame
+   - Avoid bunching or folding
+
+6. CAPTURING TRAINING IMAGES
+   - Press 's' to save the current frame to training_images/
+   - Capture a variety of wet and dry states
+   - Include different garments, wetness levels, and positions
+   - More diverse training images = better model accuracy
+
+7. PERPLEXITY API KEY SETUP
+   - Get your API key from https://www.perplexity.ai/settings/api
+   - Set it in your terminal before running the script:
+     export PPLX_API_KEY=your_key_here
+   - Or add it to your ~/.zshrc for persistence
+
+8. RUNNING THE SCRIPT
+   cd ~/Desktop/wet_dry_yolo && source yenv/bin/activate && python3 wet_dry_detect.py
+
+9. KEYBOARD CONTROLS
+   s = Save current frame to training_images/
+   a = Analyze garment (sends frame to Perplexity API)
+   g = Toggle greyscale + histogram equalization
+   p = Toggle portrait orientation (90-degree rotation)
+   q = Quit the application
+
+============================================

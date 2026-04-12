@@ -1,59 +1,62 @@
-#!/usr/bin/env python3
-# main.py — Smart Dryer System Entry Point
-
+import threading
+import time
 import logging
-import signal
-import sys
-import os
+from modules import sensor
+from modules import buzzer
+import server
 
-# ── Logging ───────────────────────────────────────────────────────────────────
+# Override standard logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler("smart_dryer.log"),
-    ],
+    format='%(levelname)-5s %(module)-12s — %(message)s'
 )
-logger = logging.getLogger("main")
+logger = logging.getLogger('main')
 
-# ── Project root on sys.path ──────────────────────────────────────────────────
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# ── Import modules ────────────────────────────────────────────────────────────
-from modules.motor  import motor
-from modules.buzzer import buzzer
-from modules.sensor import sensor
-from modules.relay  import relay
-from server         import run as run_server   # server.py is in project root
-
-
-def shutdown(sig, frame):
-    logger.info("Shutdown signal received — cleaning up...")
+def start_web_server():
+    # The desktop baseline used port 8080 and simpleHTTP
+    # server.py from baseline handles this.
     try:
-        from scan_controller import scanner
-        scanner.stop()
-    except Exception:
-        pass
-    relay.cleanup()
-    sensor.cleanup()
-    motor.cleanup()
-    buzzer.cleanup()
-    try:
-        import RPi.GPIO as GPIO
-        GPIO.cleanup()
-    except Exception:
-        pass
-    logger.info("Goodbye.")
-    sys.exit(0)
+        import subprocess
+        # Run server.py as a script so it serves the files from the root
+        subprocess.run(["python", "server.py"])
+    except Exception as e:
+        logger.error(f"Web server failed: {e}")
 
+def main():
+    logger.info("=" * 60)
+    logger.info("Smart Dryer System starting (Vanilla Dashboard Mode)...")
+    logger.info("=" * 60)
+
+    # 1. Start sensors
+    sensor.start()
+
+    # 2. Start firestore sync
+    from scan_controller import scanner
+    from modules.firestore_sync import start_command_listener, push_config
+    from config import DEFAULT_SLOT_STEPS, DEFAULT_SCAN_INTERVAL_SECONDS
+    import state_store
+
+    start_command_listener(scanner.handle_command)
+
+    # Push initial config
+    state = state_store.load()
+    push_config({
+        'scan_interval': state.get('scan_interval', DEFAULT_SCAN_INTERVAL_SECONDS),
+        'sms_recipient': state.get('sms_recipient', ''),
+        'slot_steps':    state.get('slot_steps', {str(k): v for k, v in DEFAULT_SLOT_STEPS.items()}),
+    })
+
+    # Start the local file server (serves the dashboard.html locally)
+    server_thread = threading.Thread(target=start_web_server, daemon=True)
+    server_thread.start()
+
+    # Wait for interrupts
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
+        sensor.stop()
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT,  shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
-
-    logger.info("Smart Dryer System starting...")
-    buzzer.alert()       # Startup beep
-
-    # Flask server (blocks — sensor + scan threads started inside)
-    run_server()
+    main()

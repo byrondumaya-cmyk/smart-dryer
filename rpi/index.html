@@ -1,0 +1,3121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Wet/Dry Detector</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1117;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh}
+header{background:#1a1d27;padding:0 24px;display:flex;align-items:center;gap:0;border-bottom:2px solid #2a2d3a;height:48px}
+header h1{font-size:1rem;font-weight:700;color:#e2e8f0;margin-right:32px;white-space:nowrap;display:flex;align-items:center;gap:8px}
+.livdot{width:8px;height:8px;border-radius:50%;background:#22c55e;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.tabs{display:flex;gap:0;height:100%}
+.tab-btn{padding:0 24px;height:100%;border:none;background:transparent;color:#475569;font-size:.88rem;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;display:flex;align-items:center;gap:6px}
+.tab-btn:hover{color:#94a3b8}
+.tab-btn.active{color:#e2e8f0;border-bottom-color:#6366f1}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.main{display:flex;gap:16px;padding:16px;max-width:1600px;margin:0 auto}
+.col-left{flex:1.3;display:flex;flex-direction:column;gap:14px}
+.col-mid{flex:1;display:flex;flex-direction:column;gap:14px}
+.col-right{flex:1;display:flex;flex-direction:column;gap:14px}
+.camera-box{background:#1a1d27;border-radius:14px;overflow:hidden;border:2px solid #2a2d3a;position:relative}
+#videoTrain,#videoTest{width:100%;display:block;transform:scaleX(-1)}
+#canvas,#canvasTest{display:none}
+.status-bar{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.status-badge{padding:5px 14px;border-radius:20px;font-size:.95rem;font-weight:700;letter-spacing:1px}
+.badge-waiting{background:rgba(100,116,139,.85);color:#fff}
+.badge-wet{background:rgba(239,68,68,.9);color:#fff}
+.badge-dry{background:rgba(34,197,94,.9);color:#fff}
+.badge-analyzing{background:rgba(234,179,8,.9);color:#000}
+.badge-error{background:rgba(239,68,68,.6);color:#fff}
+.conf-badge{background:rgba(0,0,0,.65);padding:4px 12px;border-radius:20px;font-size:.8rem;color:#e2e8f0}
+.analyzing-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.analyzing-overlay.show{display:flex}
+.spinner{width:44px;height:44px;border:4px solid #334155;border-top-color:#6366f1;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.save-buttons{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn-big-wet{background:#dc2626;color:#fff;border:none;border-radius:14px;padding:20px 12px;font-size:1.1rem;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s;letter-spacing:1px}
+.btn-big-dry{background:#16a34a;color:#fff;border:none;border-radius:14px;padding:20px 12px;font-size:1.1rem;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s;letter-spacing:1px}
+.btn-big-wet:hover,.btn-big-dry:hover{transform:translateY(-3px);filter:brightness(1.15)}
+.btn-big-wet .sub,.btn-big-dry .sub{font-size:.7rem;font-weight:400;opacity:.8;letter-spacing:0}
+.controls-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{padding:11px;border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover{transform:translateY(-2px);filter:brightness(1.1)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-analyze{background:#6366f1;color:#fff;grid-column:1/-1;font-size:1rem;padding:14px}
+.btn-test-analyze{background:#6366f1;color:#fff;width:100%;font-size:1rem;padding:14px;border:none;border-radius:10px;font-weight:700;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-test-analyze:hover{filter:brightness(1.1)}
+.btn-test-analyze:disabled{opacity:.5;cursor:not-allowed}
+.btn-dl{background:#3b82f6;color:#fff}
+.btn-flip{background:#334155;color:#fff}
+.tip-box{background:#1a1d27;border-radius:10px;padding:12px 14px;border-left:4px solid #6366f1;font-size:.85rem;color:#94a3b8;min-height:44px}
+.tip-box span{color:#e2e8f0}
+.panel{background:#1a1d27;border-radius:14px;border:2px solid #2a2d3a;overflow:hidden}
+.panel-header{padding:12px 16px;background:#12151f;border-bottom:1px solid #2a2d3a;font-weight:700;font-size:.88rem;color:#94a3b8;display:flex;justify-content:space-between;align-items:center}
+.tag{padding:2px 10px;border-radius:20px;font-size:.75rem;font-weight:700}
+.t-ok{background:#16a34a33;color:#4ade80}
+.t-err{background:#dc262633;color:#f87171}
+.t-ind{background:#6366f133;color:#818cf8}
+.sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#2a2d3a}
+.sensor-item{background:#1a1d27;padding:14px;text-align:center}
+.sensor-val{font-size:2rem;font-weight:800}
+.temp-val{color:#f97316}
+.hum-val{color:#38bdf8}
+.sensor-lbl{font-size:.7rem;color:#64748b;margin-top:2px}
+.sensor-learned{font-size:.72rem;margin-top:5px;color:#475569}
+.sensor-ctrl{padding:12px;display:flex;flex-direction:column;gap:8px}
+.sensor-ctrl label{font-size:.78rem;color:#94a3b8}
+.row{display:flex;gap:8px;align-items:center}
+.sel{flex:1;background:#12151f;border:1px solid #334155;border-radius:8px;padding:8px 10px;color:#e2e8f0;font-size:.82rem;outline:none}
+.sel:focus{border-color:#6366f1}
+.btn-sm{padding:7px 13px;border:none;border-radius:8px;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-connect{background:#22c55e;color:#000}
+.btn-disconnect{background:#ef4444;color:#fff}
+.btn-save-fb{background:#6366f1;color:#fff}
+.btn-load-fb{background:#0ea5e9;color:#fff}
+.status-dot{width:8px;height:8px;border-radius:50%}
+.dot-connected{background:#22c55e}
+.dot-disconnected{background:#ef4444}
+
+/* ── SETTINGS SAVE BAR ── */
+.settings-bar{padding:10px 12px;background:#0d0f14;border-top:1px solid #2a2d3a;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.settings-bar label{font-size:.75rem;color:#475569;flex:1}
+.saved-flash{font-size:.72rem;color:#4ade80;opacity:0;transition:opacity .5s}
+.saved-flash.show{opacity:1}
+
+/* ── VALIDATOR TOGGLES ── */
+.validator-toggles{padding:12px;display:flex;flex-direction:column;gap:10px;background:#12151f;border-top:1px solid #2a2d3a}
+.vt-title{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.vt-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:#1a1d27;border:1px solid #2a2d3a;transition:all .2s}
+.vt-row.disabled{opacity:.45}
+.vt-info{flex:1}
+.vt-name{font-size:.82rem;font-weight:700;color:#e2e8f0}
+.vt-desc{font-size:.7rem;color:#475569;margin-top:1px}
+.vt-badge{font-size:.65rem;padding:2px 7px;border-radius:10px;background:#1e293b;color:#475569}
+.vt-badge.on{background:#16a34a33;color:#4ade80}
+.vt-badge.off{background:#dc262633;color:#f87171}
+.toggle{position:relative;width:40px;height:22px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#334155;border-radius:22px;cursor:pointer;transition:.3s}
+.toggle-slider:before{content:'';position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
+.toggle input:checked+.toggle-slider{background:#6366f1}
+.toggle input:checked+.toggle-slider:before{transform:translateX(18px)}
+.toggle.green input:checked+.toggle-slider{background:#22c55e}
+.toggle.red input:checked+.toggle-slider{background:#ef4444}
+
+.threshold-box{padding:12px;background:#12151f;border-top:1px solid #2a2d3a;display:flex;flex-direction:column;gap:10px}
+.th-title{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px}
+.slider-row{display:flex;flex-direction:column;gap:4px}
+.sl-header{display:flex;justify-content:space-between;align-items:center}
+.sl-label{font-size:.78rem;color:#94a3b8}
+.sl-val{font-size:.82rem;font-weight:700;padding:2px 8px;border-radius:8px;background:#1e293b;color:#38bdf8;min-width:48px;text-align:center}
+.sl-val.wet-color{color:#f87171}
+input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:3px;background:#1e293b;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#6366f1;cursor:pointer}
+input[type=range].wet-slider::-webkit-slider-thumb{background:#dc2626}
+input[type=range].dry-slider::-webkit-slider-thumb{background:#16a34a}
+
+.vote-weights{padding:12px;display:flex;flex-direction:column;gap:10px;background:#12151f;border-top:1px solid #2a2d3a}
+.vw-title{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center}
+.vw-title span{color:#475569;font-weight:400;font-size:.72rem;text-transform:none;letter-spacing:0}
+.weight-bar-wrap{display:flex;align-items:center;gap:8px}
+.weight-ico{font-size:14px;width:20px;text-align:center}
+.weight-name{font-size:.75rem;color:#94a3b8;width:64px}
+.weight-bar-bg{flex:1;height:8px;background:#1e293b;border-radius:4px;overflow:hidden}
+.weight-bar-fill{height:100%;border-radius:4px;transition:width .3s}
+.wbf-sensor{background:#38bdf8}
+.wbf-image{background:#a78bfa}
+.wbf-claude{background:#f97316}
+.weight-pct{font-size:.75rem;font-weight:700;width:36px;text-align:right;color:#e2e8f0}
+.weight-input{width:46px;background:#0d0f14;border:1px solid #334155;border-radius:5px;padding:3px 5px;color:#e2e8f0;font-size:.78rem;outline:none;text-align:center}
+.weight-input:focus{border-color:#6366f1}
+.vw-note{font-size:.7rem;color:#334155;text-align:center}
+
+.vote-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#2a2d3a}
+.vote-item{background:#1a1d27;padding:14px 10px;text-align:center}
+.vote-icon{font-size:1.4rem}
+.vote-name{font-size:.65rem;color:#64748b;margin-top:2px}
+.vote-result{font-size:.9rem;font-weight:700;margin-top:6px}
+.vote-weight-badge{font-size:.6rem;color:#334155;margin-top:2px}
+.v-wet{color:#ef4444}
+.v-dry{color:#22c55e}
+.v-wait{color:#475569}
+.v-skip{color:#334155;font-style:italic}
+
+.final-verdict{padding:16px;text-align:center}
+.verdict-box{border-radius:10px;padding:14px;font-size:1.3rem;font-weight:800;letter-spacing:2px}
+.verdict-wet{background:rgba(239,68,68,.15);border:2px solid #ef4444;color:#ef4444}
+.verdict-dry{background:rgba(34,197,94,.15);border:2px solid #22c55e;color:#22c55e}
+.verdict-wait{background:rgba(100,116,139,.15);border:2px solid #475569;color:#475569}
+.verdict-sub{font-size:.75rem;font-weight:400;color:#64748b;margin-top:4px}
+
+.test-result-big{border-radius:16px;padding:24px;text-align:center;border:3px solid #334155;background:#12151f;display:flex;flex-direction:column;gap:8px}
+.result-label{font-size:2.5rem;font-weight:900;letter-spacing:3px}
+.result-conf{font-size:1rem;color:#64748b}
+.result-score{font-size:.8rem;color:#475569;margin-top:4px}
+.result-wet{border-color:#ef4444!important}
+.result-wet .result-label{color:#ef4444}
+.result-dry{border-color:#22c55e!important}
+.result-dry .result-label{color:#22c55e}
+.result-uncertain .result-label{color:#f59e0b}
+
+.breakdown-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#2a2d3a;border-radius:10px;overflow:hidden}
+.breakdown-cell{background:#1a1d27;padding:12px 8px;text-align:center;transition:opacity .2s}
+.breakdown-cell.skipped{opacity:.35}
+.bd-icon{font-size:1.2rem}
+.bd-name{font-size:.65rem;color:#64748b;margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+.bd-result{font-size:.9rem;font-weight:800;margin-top:5px}
+.bd-conf{font-size:.7rem;color:#475569;margin-top:2px}
+.bd-weight{font-size:.65rem;color:#334155;margin-top:2px}
+.bd-skip-badge{font-size:.65rem;color:#dc2626;margin-top:3px;font-weight:700}
+
+.learned-box{padding:12px;background:#12151f;border-top:1px solid #2a2d3a;display:flex;flex-direction:column;gap:5px}
+.learned-box .lb-title{font-size:.75rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px}
+.learned-row{display:flex;justify-content:space-between;font-size:.78rem}
+.lr-label{color:#475569}
+.lr-wet{color:#f87171;font-weight:700}
+.lr-dry{color:#4ade80;font-weight:700}
+
+.knn-box{padding:12px;display:flex;flex-direction:column;gap:8px}
+.knn-title{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center}
+.knn-ready{color:#4ade80!important}
+.knn-loading{color:#f59e0b!important}
+.knn-empty{color:#f87171!important}
+.knn-bar-bg{background:#1e293b;border-radius:4px;height:6px;overflow:hidden}
+.knn-bar-fill{height:100%;background:linear-gradient(90deg,#6366f1,#818cf8);border-radius:4px;transition:width .3s;width:0%}
+.knn-counts{display:flex;gap:12px;font-size:.75rem}
+.knn-c-wet{color:#f87171}
+.knn-c-dry{color:#4ade80}
+.knn-c-tot{color:#818cf8}
+.btn-load-knn{padding:7px 12px;background:#6366f1;color:#fff;border:none;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;align-self:flex-start;transition:all .2s}
+.btn-load-knn:hover{filter:brightness(1.2)}
+.btn-load-knn:disabled{opacity:.5;cursor:not-allowed}
+
+.stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#2a2d3a}
+.stat-item{background:#1a1d27;padding:14px;text-align:center}
+.stat-num{font-size:1.6rem;font-weight:800}
+.stat-lbl{font-size:.7rem;color:#64748b;margin-top:2px}
+.s-total{color:#6366f1}
+.s-wet{color:#ef4444}
+.s-dry{color:#22c55e}
+.delete-all-wrap{padding:10px 12px;border-top:1px solid #2a2d3a}
+.btn-delete-all{width:100%;padding:9px;background:#1a0808;border:1px solid #7f1d1d;border-radius:8px;color:#f87171;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-delete-all:hover{background:#dc2626;color:#fff;border-color:#dc2626}
+
+.gallery{padding:12px;max-height:200px;overflow-y:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.gallery::-webkit-scrollbar{width:5px}
+.gallery::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+.g-item{position:relative;border-radius:7px;overflow:hidden;aspect-ratio:3/4;border:2px solid transparent;cursor:pointer;transition:border-color .2s}
+.g-item:hover{border-color:#6366f1}
+.g-item img{width:100%;height:100%;object-fit:cover}
+.g-label{position:absolute;bottom:0;left:0;right:0;padding:3px;text-align:center;font-size:.65rem;font-weight:700;letter-spacing:1px}
+.gl-wet{background:rgba(239,68,68,.85);color:#fff}
+.gl-dry{background:rgba(34,197,94,.85);color:#fff}
+.g-del{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.7);border:none;color:#ef4444;border-radius:50%;width:20px;height:20px;font-size:.65rem;cursor:pointer;display:none;align-items:center;justify-content:center}
+.g-item:hover .g-del{display:flex}
+.g-item .g-hum{position:absolute;top:3px;left:3px;background:rgba(0,0,0,.7);padding:2px 5px;border-radius:5px;font-size:.6rem;color:#38bdf8}
+.g-feat-ok{position:absolute;bottom:18px;right:3px;background:rgba(34,197,94,.8);width:7px;height:7px;border-radius:50%}
+.g-feat-no{position:absolute;bottom:18px;right:3px;background:rgba(239,68,68,.8);width:7px;height:7px;border-radius:50%}
+.empty-g{grid-column:1/-1;text-align:center;padding:30px 16px;color:#475569;font-size:.85rem}
+.api-box{padding:14px;display:flex;flex-direction:column;gap:8px}
+.api-box label{font-size:.8rem;color:#94a3b8}
+.api-box input{background:#12151f;border:1px solid #334155;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:.8rem;width:100%;outline:none}
+.api-box input:focus{border-color:#6366f1}
+.log{padding:10px 14px;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+.log::-webkit-scrollbar{width:4px}
+.log::-webkit-scrollbar-thumb{background:#1e293b}
+.log-entry{font-size:.75rem;display:flex;gap:8px;align-items:flex-start}
+.lt{color:#334155;white-space:nowrap;font-size:.7rem}
+.lw{color:#ef4444}.ld{color:#22c55e}.li{color:#6366f1}.ls{color:#f59e0b}.le{color:#ef4444;font-weight:700}
+.chart-wrap{padding:8px 10px}
+#sChart,#sChartTest{width:100%;height:70px;display:block}
+.auto-row{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#12151f;border-top:1px solid #2a2d3a}
+.toast{position:fixed;bottom:20px;right:20px;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 18px;font-size:.85rem;color:#e2e8f0;transform:translateY(100px);opacity:0;transition:all .3s;z-index:999;max-width:300px}
+.toast.show{transform:translateY(0);opacity:1}
+.buz-btn{padding:8px 4px;border-radius:8px;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.5px}
+.buz-btn:hover{filter:brightness(1.3);transform:translateY(-1px)}
+.buz-btn:active{transform:translateY(0);filter:brightness(.9)}
+.buz-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.toast-save{position:fixed;bottom:24px;right:24px;
+  background:#14532d;color:#4ade80;border:1px solid #22c55e;
+  border-radius:10px;padding:10px 16px;font-size:.8rem;font-weight:600;
+  font-family:monospace;z-index:9999;opacity:0;
+  transition:opacity .3s,transform .3s;transform:translateY(10px);
+  pointer-events:none;}
+.toast-save.show{opacity:1;transform:translateY(0);}
+.slot-empty{border-color:#334155 !important;opacity:.5;}
+.slot-empty .scm-result{color:#475569 !important;}
+.slot-card-mini{background:#1a1d27;border:1px solid #2a2d3a;border-radius:10px;padding:10px 6px;text-align:center;transition:all .4s}
+.slot-card-mini.active-slot{border-color:#6366f1;background:rgba(99,102,241,.08);box-shadow:0 0 16px rgba(99,102,241,.2)}
+.slot-card-mini.wet-slot{border-color:#3b82f6;background:rgba(59,130,246,.08)}
+.slot-card-mini.dry-slot{border-color:#22c55e;background:rgba(34,197,94,.08)}
+.scm-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.scm-num{font-size:.65rem;font-weight:700;color:#6366f1;font-family:monospace}
+.scm-label{font-size:.6rem;color:#475569;font-family:monospace}
+.scm-result{font-size:1.1rem;font-weight:900;margin:4px 0;transition:color .3s}
+.scm-hum{font-size:.72rem;color:#38bdf8;font-family:monospace}
+.scm-temp{font-size:.68rem;color:#f97316;font-family:monospace}
+/* ── SIMULATION TAB ── */
+.sim-main{display:flex;gap:16px;padding:16px;max-width:1400px;margin:0 auto}
+.sim-left{flex:1.2;display:flex;flex-direction:column;gap:14px}
+.sim-right{flex:1;display:flex;flex-direction:column;gap:14px}
+
+.sim-state-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:8px 18px;border-radius:30px;
+  font-size:.85rem;font-weight:700;letter-spacing:1px;
+  font-family:monospace;transition:all .4s;
+}
+.sim-idle    {background:rgba(71,85,105,.3); border:1px solid #475569;color:#94a3b8}
+.sim-moving  {background:rgba(245,158,11,.15);border:1px solid #f59e0b;color:#fbbf24;animation:simPulse 1s infinite}
+.sim-scanning{background:rgba(99,102,241,.15);border:1px solid #6366f1;color:#818cf8;animation:simPulse .7s infinite}
+.sim-wet     {background:rgba(59,130,246,.15); border:1px solid #3b82f6;color:#60a5fa}
+.sim-dry     {background:rgba(34,197,94,.15);  border:1px solid #22c55e;color:#4ade80}
+.sim-stopped {background:rgba(239,68,68,.2);   border:1px solid #ef4444;color:#f87171}
+@keyframes simPulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+.sim-result-card{
+  border-radius:16px;padding:20px;text-align:center;
+  border:2px solid #2a2d3a;background:#12151f;
+  display:flex;flex-direction:column;gap:8px;
+  transition:all .5s;
+}
+.sim-result-card.wet{border-color:#3b82f6;box-shadow:0 0 30px rgba(59,130,246,.2)}
+.sim-result-card.dry{border-color:#22c55e;box-shadow:0 0 30px rgba(34,197,94,.2)}
+.sim-result-label{font-size:2rem;font-weight:900;letter-spacing:2px}
+.sim-result-label.wet{color:#3b82f6}
+.sim-result-label.dry{color:#22c55e}
+.sim-result-sub{font-size:.78rem;color:#475569}
+.sim-result-meta{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:4px}
+.sim-meta-item{font-size:.72rem;color:#64748b;font-family:monospace;
+  background:#1e293b;padding:3px 10px;border-radius:10px}
+
+.sim-controls{
+  background:#1a1d27;border:1px solid #2a2d3a;border-radius:14px;
+  padding:16px;display:flex;flex-direction:column;gap:14px;
+}
+.sim-ctrl-title{font-size:.72rem;font-weight:700;color:#475569;
+  text-transform:uppercase;letter-spacing:1.5px;font-family:monospace}
+.sim-btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sim-btn-row.three{grid-template-columns:1fr 1fr 1fr}
+.btn-sim{
+  padding:14px 8px;border:none;border-radius:12px;
+  font-size:.88rem;font-weight:700;cursor:pointer;
+  transition:all .2s;display:flex;flex-direction:column;
+  align-items:center;gap:5px;letter-spacing:.5px;
+}
+.btn-sim:hover{transform:translateY(-2px);filter:brightness(1.2)}
+.btn-sim:active{transform:translateY(0)}
+.btn-sim:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-sim-move  {background:#16a34a33;border:1px solid #16a34a;color:#4ade80;font-size:.95rem}
+.btn-sim-scan  {background:#6366f133;border:1px solid #6366f1;color:#818cf8;font-size:.95rem}
+.btn-sim-estop {background:#dc2626;color:#fff;font-size:1rem;font-weight:900;grid-column:1/-1;padding:16px}
+.btn-sim-estop:hover{background:#b91c1c}
+
+.sim-slider-group{display:flex;flex-direction:column;gap:8px}
+.sim-sl-row{display:flex;flex-direction:column;gap:4px}
+.sim-sl-header{display:flex;justify-content:space-between;font-size:.75rem;color:#94a3b8}
+.sim-sl-val{font-weight:700;color:#38bdf8;font-family:monospace}
+
+.sim-log{
+  background:#0d0f14;border:1px solid #1e293b;border-radius:10px;
+  padding:10px 12px;max-height:180px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:4px;
+}
+.sim-log::-webkit-scrollbar{width:4px}
+.sim-log::-webkit-scrollbar-thumb{background:#1e293b}
+.sim-log-entry{font-size:.72rem;display:flex;gap:8px;font-family:monospace}
+.sl-t{color:#334155}
+.sl-move{color:#f59e0b}.sl-scan{color:#818cf8}.sl-wet{color:#3b82f6}
+.sl-dry{color:#22c55e}.sl-stop{color:#ef4444}.sl-info{color:#475569}
+
+.slot-indicators{display:flex;gap:8px;flex-wrap:wrap}
+.slot-ind{
+  flex:1;min-width:60px;padding:10px 6px;border-radius:10px;
+  text-align:center;border:1px solid #2a2d3a;background:#12151f;
+  transition:all .4s;
+}
+.slot-ind.active  {border-color:#6366f1;background:rgba(99,102,241,.1)}
+.slot-ind.wet-slot{border-color:#3b82f6;background:rgba(59,130,246,.1)}
+.slot-ind.dry-slot{border-color:#22c55e;background:rgba(34,197,94,.1)}
+.slot-ind-num{font-size:.65rem;color:#475569;font-family:monospace}
+.slot-ind-status{font-size:.8rem;font-weight:700;margin-top:3px}
+
+
+.color-display{
+  display:none;align-items:center;gap:12px;
+  background:#12151f;border:1px solid #2a2d3a;
+  border-radius:10px;padding:10px 14px;margin-top:4px;
+}
+.color-swatch{
+  width:32px;height:32px;border-radius:8px;
+  border:2px solid rgba(255,255,255,0.15);
+  flex-shrink:0;transition:background 0.4s;
+  box-shadow:0 0 12px rgba(0,0,0,0.4);
+}
+.color-info{display:flex;flex-direction:column;gap:3px;flex:1}
+.color-label{font-size:.68rem;color:#475569;text-transform:uppercase;letter-spacing:1px;font-family:monospace}
+.color-name{font-size:.95rem;font-weight:700;color:#e2e8f0}
+.garment-type-badge{
+  display:inline-block;font-size:.72rem;font-weight:700;
+  padding:2px 10px;border-radius:20px;margin-top:3px;
+  letter-spacing:.5px;
+}
+.gtype-polo  {background:rgba(99,102,241,0.2);color:#818cf8;border:1px solid rgba(99,102,241,0.3)}
+.gtype-tshirt{background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3)}
+.sms-box{padding:14px;display:flex;flex-direction:column;gap:10px}
+.sms-box label{font-size:.78rem;color:#94a3b8}
+.sms-box input{background:#12151f;border:1px solid #334155;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:.8rem;width:100%;outline:none}
+.sms-box input:focus{border-color:#6366f1}
+.sms-status{font-size:.72rem;padding:6px 10px;border-radius:7px;margin-top:2px}
+.sms-ok{background:#16a34a22;border:1px solid #16a34a;color:#4ade80}
+.sms-err{background:#dc262622;border:1px solid #dc2626;color:#f87171}
+.sms-log{font-size:.7rem;background:#0d0f14;border-radius:6px;padding:6px 8px;color:#475569;font-family:monospace;max-height:80px;overflow-y:auto}
+.phone-tag{display:inline-flex;align-items:center;gap:5px;background:#1e293b;border:1px solid #334155;border-radius:20px;padding:3px 10px;font-size:.75rem;color:#e2e8f0}
+.phone-tag button{background:none;border:none;color:#ef4444;cursor:pointer;font-size:.75rem;padding:0 2px}
+.phones-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+@media(max-width:1100px){.main{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><div class="livdot"></div>👕 Wet/Dry Detector</h1>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('train',this)">🎓 Train</button>
+    <button class="tab-btn" onclick="switchTab('test',this)">🔬 Test</button>
+    <button class="tab-btn" onclick="switchTab('sim',this)">🤖 Simulation</button>
+  </div>
+</header>
+
+<!-- ═══════════ TRAIN TAB ═══════════ -->
+<div id="tab-train" class="tab-content active">
+<div class="main">
+  <div class="col-left">
+    <div class="camera-box">
+      <video id="videoTrain" autoplay playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div class="status-bar">
+        <div id="trainStatusBadge" class="status-badge badge-waiting">WAITING</div>
+        <div id="trainConfBadge" class="conf-badge">--</div>
+      </div>
+      <div class="analyzing-overlay" id="trainOverlay">
+        <div class="spinner"></div>
+        <div style="color:#e2e8f0;font-weight:600;font-size:.9rem">Analyzing...</div>
+      </div>
+    </div>
+    <div class="save-buttons">
+      <button class="btn-big-wet" onclick="saveGroundTruth('WET')">💧 IT IS WET<span class="sub">Saves image+sensor (W)</span></button>
+      <button class="btn-big-dry" onclick="saveGroundTruth('DRY')">☀️ IT IS DRY<span class="sub">Saves image+sensor (D)</span></button>
+    </div>
+    <div class="controls-row">
+      <button class="btn btn-analyze" id="btnAnalyze" onclick="runValidation()">🔍 Validate (T)</button>
+      <button class="btn btn-dl" onclick="dlFrame('canvas','videoTrain')">📸 Save</button>
+      <button class="btn btn-flip" onclick="flipCam('train')">🔄 Flip</button>
+    </div>
+    <div class="tip-box">💡 <span id="tipText">W=WET · D=DRY · T=Validate · L=Load kNN</span></div>
+    <div class="color-display" id="trainColorDisplay">
+      <div class="color-swatch" id="trainColorSwatch"></div>
+      <div class="color-info">
+        <div class="color-label">🎨 Garment Analysis</div>
+        <div class="color-name" id="trainColorName">—</div>
+        <div class="garment-type-badge gtype-tshirt" id="trainGarmentType" style="display:none">—</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">🖼️ Image kNN Status</div>
+      <div class="knn-box">
+        <div class="knn-title">Features <span id="knnStatusLabel" class="knn-empty">NOT LOADED</span></div>
+        <div class="knn-bar-bg"><div class="knn-bar-fill" id="knnProgress"></div></div>
+        <div class="knn-counts">
+          <span class="knn-c-tot">Total: <b id="knnTotal">0</b></span>
+          <span class="knn-c-wet">WET: <b id="knnWet">0</b></span>
+          <span class="knn-c-dry">DRY: <b id="knnDry">0</b></span>
+        </div>
+        <button class="btn-load-knn" id="btnLoadKnn" onclick="loadKnnFeatures()">⬇️ Load & Cache Features</button>
+        <button class="btn-load-knn" style="background:#334155;margin-top:4px" onclick="rebuildKnnCache()">🔄 Rebuild Cache</button>
+        <div style="font-size:.7rem;color:#334155">First load downloads images · After that loads from Firebase cache instantly</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">🔍 Validation Result</div>
+      <div class="vote-grid">
+        <div class="vote-item"><div class="vote-icon">🌡️</div><div class="vote-name">SENSOR</div><div class="vote-result v-wait" id="vSensor">—</div><div class="vote-weight-badge" id="wSensor">wt:--</div></div>
+        <div class="vote-item"><div class="vote-icon">🖼️</div><div class="vote-name">IMAGE kNN</div><div class="vote-result v-wait" id="vImage">—</div><div class="vote-weight-badge" id="wImage">wt:--</div></div>
+        <div class="vote-item"><div class="vote-icon">🤖</div><div class="vote-name">CLAUDE AI</div><div class="vote-result v-wait" id="vAI">—</div><div class="vote-weight-badge" id="wAI">wt:--</div></div>
+      </div>
+      <div class="final-verdict">
+        <div id="verdictBox" class="verdict-box verdict-wait">WAITING</div>
+        <div id="verdictSub" class="verdict-sub">Press T or Validate</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-mid">
+    <div class="panel">
+      <div class="panel-header">🌡️ Arduino DHT22 <span class="tag t-err" id="serialStatus">DISCONNECTED</span></div>
+      <div class="sensor-grid">
+        <div class="sensor-item"><div class="sensor-val temp-val" id="tempVal">--</div><div class="sensor-lbl">°C TEMP</div><div class="sensor-learned" id="tempLearned"></div></div>
+        <div class="sensor-item"><div class="sensor-val hum-val" id="humVal">--</div><div class="sensor-lbl">% HUM</div><div class="sensor-learned" id="humLearned"></div></div>
+      </div>
+      <div class="sensor-ctrl">
+        <label>Web Serial (Chrome only)</label>
+        <div class="row">
+          <select class="sel" id="baudRate"><option value="9600" selected>9600</option><option value="19200">19200</option><option value="57600">57600</option><option value="115200">115200</option></select>
+          <button class="btn-sm btn-connect" id="btnConnect" onclick="connectSerial()">🔌 Connect</button>
+          <button class="btn-sm btn-disconnect" id="btnDisconnect" onclick="disconnectSerial()" style="display:none">⏏ Disc.</button>
+        </div>
+        <div class="row"><div class="status-dot dot-disconnected" id="serialDot"></div><span id="serialMsg" style="font-size:.78rem;color:#64748b;margin-left:6px">Not connected</span></div>
+        <div style="background:#12151f;border-radius:8px;padding:8px;font-size:.7rem;color:#475569;font-family:monospace;height:52px;overflow-y:auto" id="serialLog">Waiting...</div>
+      </div>
+
+      <!-- THRESHOLD with SAVE button -->
+      <div class="threshold-box">
+        <div class="th-title">🎚️ Humidity Threshold</div>
+        <div class="slider-row">
+          <div class="sl-header"><span class="sl-label">WET above</span><span class="sl-val wet-color" id="wetThrVal">70%</span></div>
+          <input type="range" class="wet-slider" id="wetThr" min="1" max="100" value="70" oninput="onThrChange(this)"/>
+        </div>
+        <div class="slider-row">
+          <div class="sl-header"><span class="sl-label">DRY below</span><span class="sl-val" id="dryThrVal">50%</span></div>
+          <input type="range" class="dry-slider" id="dryThr" min="1" max="100" value="50" oninput="onThrChange(this)"/>
+        </div>
+        <div style="font-size:.7rem;color:#475569">Between <span id="dryThrShow" style="color:#4ade80;font-weight:700">50%</span> and <span id="wetThrShow" style="color:#f87171;font-weight:700">70%</span> = UNCERTAIN</div>
+        <div class="row"><input type="checkbox" id="useLearnedRanges" checked style="accent-color:#6366f1"/><label for="useLearnedRanges" style="font-size:.75rem;color:#64748b;cursor:pointer">Auto-use learned ranges</label></div>
+        <div class="row" style="margin-top:4px">
+          <button class="btn-sm btn-save-fb" onclick="saveThresholds()">💾 Save Thresholds</button>
+          <button class="btn-sm btn-load-fb" onclick="loadSettings()">📥 Load Saved</button>
+          <span class="saved-flash" id="thrFlash">✅ Saved!</span>
+        </div>
+      </div>
+
+      <div class="learned-box" id="learnedRanges" style="display:none">
+        <div class="lb-title">📚 Learned ranges</div>
+        <div class="learned-row"><span class="lr-label">WET hum:</span><span class="lr-wet" id="wetHumRange">—</span></div>
+        <div class="learned-row"><span class="lr-label">DRY hum:</span><span class="lr-dry" id="dryHumRange">—</span></div>
+        <div class="learned-row"><span class="lr-label">WET temp:</span><span class="lr-wet" id="wetTempRange">—</span></div>
+        <div class="learned-row"><span class="lr-label">DRY temp:</span><span class="lr-dry" id="dryTempRange">—</span></div>
+      </div>
+    </div>
+
+    <!-- BUZZER PANEL -->
+    <div class="panel">
+      <div class="panel-header">🔔 Buzzer Control <span class="tag t-err" id="buzzerStatus">PIN 5</span></div>
+      <div style="padding:12px;display:flex;flex-direction:column;gap:10px;background:#12151f;border-top:1px solid #2a2d3a">
+        <div style="font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Test Buzzer Sounds</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <button class="buz-btn" style="background:#ef444433;border:1px solid #ef4444;color:#fca5a5" onclick="sendBuzzer('BUZ_WET')">💧 WET</button>
+          <button class="buz-btn" style="background:#16a34a33;border:1px solid #22c55e;color:#86efac" onclick="sendBuzzer('BUZ_DRY')">☀️ DRY</button>
+          <button class="buz-btn" style="background:#f59e0b33;border:1px solid #f59e0b;color:#fcd34d" onclick="sendBuzzer('BUZ_UNCERTAIN')">❓ UNSURE</button>
+          <button class="buz-btn" style="background:#6366f133;border:1px solid #6366f1;color:#a5b4fc" onclick="sendBuzzer('BUZ_SAVED')">💾 SAVED</button>
+          <button class="buz-btn" style="background:#0ea5e933;border:1px solid #0ea5e9;color:#7dd3fc" onclick="sendBuzzer('BUZ_ANALYZING')">🔍 ANALYZE</button>
+          <button class="buz-btn" style="background:#dc262633;border:1px solid #dc2626;color:#fca5a5" onclick="sendBuzzer('BUZ_ERROR')">❌ ERROR</button>
+          <button class="buz-btn" style="background:#22c55e33;border:1px solid #22c55e;color:#86efac" onclick="sendBuzzer('BUZ_CONNECT')">🔌 CONNECT</button>
+          <button class="buz-btn" style="background:#334155;border:1px solid #475569;color:#94a3b8" onclick="sendBuzzer('BUZ_READY')">✅ READY</button>
+          <button class="buz-btn" style="background:#7c3aed33;border:1px solid #7c3aed;color:#c4b5fd" onclick="sendBuzzer('BUZ_TEST')">🎵 SWEEP</button>
+        </div>
+        <div style="font-size:.72rem;color:#334155;border-top:1px solid #1e293b;padding-top:8px">
+          Buzzer responds automatically during: Validate · Save WET/DRY · Detect result
+        </div>
+        <div style="font-size:.7rem;background:#0d0f14;border-radius:6px;padding:6px 8px;color:#475569;font-family:monospace" id="buzzerLog">Waiting for commands...</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">🤖 Claude API Key</div>
+      <div class="api-box">
+        <label>Anthropic key (browser only)</label>
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..."/>
+        <button class="btn-sm btn-connect" onclick="saveApiKey()">Save Key</button>
+      </div>
+    </div>
+
+    <!-- SMS ALERT PANEL -->
+    <div class="panel">
+      <div class="panel-header">📱 SMS Alert — Semaphore <span class="tag t-err" id="smsStatusTag">OFF</span></div>
+      <div class="sms-box">
+        <div class="row">
+          <label class="toggle green" style="flex-shrink:0">
+            <input type="checkbox" id="smsEnabled" onchange="onSmsToggle()"/>
+            <span class="toggle-slider"></span>
+          </label>
+          <span style="font-size:.82rem;color:#94a3b8">Send SMS when DRY is detected</span>
+        </div>
+        <label>Semaphore API Key</label>
+        <input type="password" id="semaphoreKey" placeholder="Your Semaphore API key..."/>
+        <label>Sender Name (max 11 chars, registered)</label>
+        <input type="text" id="semaphoreSender" placeholder="e.g. EHUB" maxlength="11" value="SMARTDRYER"/>
+        <label>Philippine numbers to notify (+63 or 09...)</label>
+        <div class="row">
+          <input type="text" id="smsNumberInput" placeholder="09XXXXXXXXX or +639XXXXXXXXX" maxlength="13"
+            onkeydown="if(event.key==='Enter')addPhone()"/>
+          <button class="btn-sm btn-connect" onclick="addPhone()">+ Add</button>
+        </div>
+        <div class="phones-wrap" id="phonesWrap">
+          <span style="font-size:.72rem;color:#334155">No numbers added yet</span>
+        </div>
+        <label>Custom DRY message</label>
+        <input type="text" id="smsDryMsg" value="NOTICE: Your clothes are DRY! Humidity: {HUM}% Temp: {TEMP}C. Please check immediately." maxlength="160"/>
+        <div style="font-size:.68rem;color:#334155">{HUM} = humidity value · {TEMP} = temperature · max 160 chars</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button class="btn-sm btn-save-fb" onclick="saveSmsSettings()">💾 Save SMS Settings</button>
+          <button class="btn-sm btn-load-fb" onclick="loadSettings()">📥 Load Saved</button>
+          <button class="btn-sm" style="background:#334155;color:#94a3b8" onclick="testSms()">📤 Send Test SMS</button>
+        </div>
+        <div class="sms-log" id="smsLog">SMS log ready...</div>
+      </div>
+    </div>
+
+    <!-- WEIGHTS with SAVE button -->
+    <div class="panel">
+      <div class="panel-header">⚖️ Voting Weights</div>
+      <div class="vote-weights">
+        <div class="vw-title">How much each counts <span>Total = 100%</span></div>
+        <div class="weight-bar-wrap"><span class="weight-ico">🌡️</span><span class="weight-name">Sensor</span><div class="weight-bar-bg"><div class="weight-bar-fill wbf-sensor" id="barSensor" style="width:60%"></div></div><input type="number" class="weight-input" id="wgtSensor" value="60" min="0" max="100" oninput="onWgtChange()"/><span class="weight-pct" id="pctSensor">60%</span></div>
+        <div class="weight-bar-wrap"><span class="weight-ico">🖼️</span><span class="weight-name">Image kNN</span><div class="weight-bar-bg"><div class="weight-bar-fill wbf-image" id="barImage" style="width:20%"></div></div><input type="number" class="weight-input" id="wgtImage" value="20" min="0" max="100" oninput="onWgtChange()"/><span class="weight-pct" id="pctImage">20%</span></div>
+        <div class="weight-bar-wrap"><span class="weight-ico">🤖</span><span class="weight-name">Claude AI</span><div class="weight-bar-bg"><div class="weight-bar-fill wbf-claude" id="barClaude" style="width:20%"></div></div><input type="number" class="weight-input" id="wgtClaude" value="20" min="0" max="100" oninput="onWgtChange()"/><span class="weight-pct" id="pctClaude">20%</span></div>
+        <div class="vw-note" id="wgtNote" style="color:#4ade80">Total: 100% ✅</div>
+        <div class="row" style="margin-top:4px">
+          <button class="btn-sm btn-save-fb" onclick="saveWeights()">💾 Save Weights</button>
+          <button class="btn-sm btn-load-fb" onclick="loadSettings()">📥 Load Saved</button>
+          <button class="btn-sm" style="background:#1e293b;color:#94a3b8" onclick="resetWeights()">Reset</button>
+          <span class="saved-flash" id="wgtFlash">✅ Saved!</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-right">
+    <div class="panel"><div class="panel-header">📈 Sensor History</div><div class="chart-wrap"><canvas id="sChart"></canvas></div></div>
+    <div class="panel">
+      <div class="panel-header">📊 Training Dataset</div>
+      <div class="stats-grid">
+        <div class="stat-item"><div class="stat-num s-total" id="statTotal">0</div><div class="stat-lbl">TOTAL</div></div>
+        <div class="stat-item"><div class="stat-num s-wet" id="statWet">0</div><div class="stat-lbl">WET</div></div>
+        <div class="stat-item"><div class="stat-num s-dry" id="statDry">0</div><div class="stat-lbl">DRY</div></div>
+      </div>
+
+    </div>
+    <div class="panel"><div class="panel-header">🖼️ Training Images <span class="tag t-ind" id="galleryCount">0</span></div><div class="gallery" id="gallery"><div class="empty-g">No images yet!</div></div></div>
+    <div class="panel" style="flex:1"><div class="panel-header">📋 Activity Log</div><div class="log" id="log"><div class="log-entry"><span class="lt">--:--</span><span class="li">App started...</span></div></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ TEST TAB ═══════════ -->
+<div id="tab-test" class="tab-content">
+<div class="main">
+  <div class="col-left">
+    <div class="camera-box">
+      <video id="videoTest" autoplay playsinline></video>
+      <canvas id="canvasTest"></canvas>
+      <div class="status-bar">
+        <div id="testStatusBadge" class="status-badge badge-waiting">WAITING</div>
+        <div id="testConfBadge" class="conf-badge">--</div>
+      </div>
+      <div class="analyzing-overlay" id="testOverlay">
+        <div class="spinner"></div>
+        <div style="color:#e2e8f0;font-weight:600;font-size:.9rem" id="testOverlayMsg">Analyzing...</div>
+      </div>
+    </div>
+    <div class="test-result-big" id="testResultBox">
+      <div class="result-label" id="testResultLabel">WAITING</div>
+      <div class="result-conf" id="testResultConf">Press Analyze to test</div>
+      <div class="result-score" id="testResultScore"></div>
+    </div>
+    <button class="btn-test-analyze" id="btnTestAnalyze" onclick="runTest()">⚡ Analyze (T)</button>
+    <div class="auto-row">
+      <label class="toggle"><input type="checkbox" id="autoDetect" onchange="toggleAuto()"/><span class="toggle-slider"></span></label>
+      <label for="autoDetect" style="font-size:.82rem;color:#94a3b8">Auto every <b id="autoIntervalVal">3</b>s</label>
+      <input type="range" id="autoInterval" min="1" max="10" value="3" style="flex:1;height:4px" oninput="document.getElementById('autoIntervalVal').textContent=this.value"/>
+      <button class="btn-sm" style="background:#334155;color:#94a3b8" onclick="flipCam('test')">🔄 Flip</button>
+    </div>
+    <div class="tip-box">💡 <span id="testTipText">Toggle validators to save API tokens · Settings sync with Train tab</span></div>
+    <div class="color-display" id="testColorDisplay">
+      <div class="color-swatch" id="testColorSwatch"></div>
+      <div class="color-info">
+        <div class="color-label">🎨 Garment Analysis</div>
+        <div class="color-name" id="testColorName">—</div>
+        <div class="garment-type-badge gtype-tshirt" id="testGarmentType" style="display:none">—</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">🔬 Vote Breakdown</div>
+      <div class="breakdown-grid">
+        <div class="breakdown-cell" id="bdSensorCell"><div class="bd-icon">🌡️</div><div class="bd-name">Sensor</div><div class="bd-result v-wait" id="bdSensor">—</div><div class="bd-conf" id="bdSensorConf">--</div><div class="bd-weight" id="bdSensorWt">wt:60%</div><div class="bd-skip-badge" id="bdSensorSkip" style="display:none">SKIPPED</div></div>
+        <div class="breakdown-cell" id="bdImageCell"><div class="bd-icon">🖼️</div><div class="bd-name">Image kNN</div><div class="bd-result v-wait" id="bdImage">—</div><div class="bd-conf" id="bdImageConf">--</div><div class="bd-weight" id="bdImageWt">wt:20%</div><div class="bd-skip-badge" id="bdImageSkip" style="display:none">SKIPPED</div></div>
+        <div class="breakdown-cell" id="bdClaudeCell"><div class="bd-icon">🤖</div><div class="bd-name">Claude AI</div><div class="bd-result v-wait" id="bdClaude">—</div><div class="bd-conf" id="bdClaudeConf">--</div><div class="bd-weight" id="bdClaudeWt">wt:20%</div><div class="bd-skip-badge" id="bdClaudeSkip" style="display:none">SKIPPED</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-mid">
+    <div class="panel">
+      <div class="panel-header">🌡️ Live Sensor <span class="tag t-err" id="testSerialStatus">DISCONNECTED</span></div>
+      <div class="sensor-grid">
+        <div class="sensor-item"><div class="sensor-val temp-val" id="testTempVal">--</div><div class="sensor-lbl">°C TEMP</div></div>
+        <div class="sensor-item"><div class="sensor-val hum-val" id="testHumVal">--</div><div class="sensor-lbl">% HUM</div><div class="sensor-learned" id="testHumHint"></div></div>
+      </div>
+    </div>
+
+    <!-- VALIDATOR TOGGLES -->
+    <div class="panel">
+      <div class="panel-header">🔀 Validator Toggles <span style="font-size:.7rem;color:#475569">OFF = skip & save tokens</span></div>
+      <div class="validator-toggles">
+        <div class="vt-title">Enable / Disable each validator</div>
+        <div class="vt-row" id="toggleRowSensor">
+          <div class="vt-info"><div class="vt-name">🌡️ Sensor Vote</div><div class="vt-desc">DHT22 humidity & temperature</div></div>
+          <span class="vt-badge on" id="badgeSensor">ON</span>
+          <label class="toggle green"><input type="checkbox" id="toggleSensor" checked onchange="onToggleChange()"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="vt-row" id="toggleRowImage">
+          <div class="vt-info"><div class="vt-name">🖼️ Image kNN Vote</div><div class="vt-desc">Compares against your labeled photos</div></div>
+          <span class="vt-badge on" id="badgeImage">ON</span>
+          <label class="toggle green"><input type="checkbox" id="toggleImage" checked onchange="onToggleChange()"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="vt-row" id="toggleRowClaude">
+          <div class="vt-info"><div class="vt-name">🤖 Claude AI Vote</div><div class="vt-desc">Uses API tokens — toggle OFF to save</div></div>
+          <span class="vt-badge on" id="badgeClaude">ON</span>
+          <label class="toggle red"><input type="checkbox" id="toggleClaude" checked onchange="onToggleChange()"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="row" style="margin-top:4px">
+          <button class="btn-sm btn-save-fb" onclick="saveToggles()">💾 Save Toggles</button>
+          <button class="btn-sm btn-load-fb" onclick="loadSettings()">📥 Load Saved</button>
+          <span class="saved-flash" id="togFlash">✅ Saved!</span>
+        </div>
+        <div style="font-size:.7rem;color:#334155">Decision uses active validators only — weights redistribute automatically.</div>
+      </div>
+    </div>
+
+    <!-- TEST THRESHOLDS with SAVE -->
+    <div class="panel">
+      <div class="panel-header">🎚️ Test Thresholds</div>
+      <div class="threshold-box" style="border-top:none">
+        <div class="slider-row">
+          <div class="sl-header"><span class="sl-label">WET above</span><span class="sl-val wet-color" id="testWetThrVal">70%</span></div>
+          <input type="range" class="wet-slider" id="testWetThr" min="1" max="100" value="70" disabled style="opacity:0.5;cursor:not-allowed"/>
+        </div>
+        <div class="slider-row">
+          <div class="sl-header"><span class="sl-label">DRY below</span><span class="sl-val" id="testDryThrVal">50%</span></div>
+          <input type="range" class="dry-slider" id="testDryThr" min="1" max="100" value="50" disabled style="opacity:0.5;cursor:not-allowed"/>
+        </div>
+        <div style="font-size:.7rem;color:#475569">Between <span id="testDryThrShow" style="color:#4ade80;font-weight:700">50%</span> and <span id="testWetThrShow" style="color:#f87171;font-weight:700">70%</span> = UNCERTAIN</div>
+        <div class="row"><input type="checkbox" id="testUseLearned" checked style="accent-color:#6366f1"/><label for="testUseLearned" style="font-size:.75rem;color:#64748b;cursor:pointer">Auto-use learned ranges</label></div>
+        <div style="font-size:.72rem;color:#475569;padding:4px 2px;display:flex;align-items:center;gap:6px">
+          🔒 Mirrored from Train tab — change thresholds there
+        </div>
+      </div>
+      <div class="learned-box" id="testLearnedRanges" style="display:none">
+        <div class="lb-title">📚 Learned ranges</div>
+        <div class="learned-row"><span class="lr-label">WET hum:</span><span class="lr-wet" id="testWetHumRange">—</span></div>
+        <div class="learned-row"><span class="lr-label">DRY hum:</span><span class="lr-dry" id="testDryHumRange">—</span></div>
+        <div class="learned-row"><span class="lr-label">WET temp:</span><span class="lr-wet" id="testWetTempRange">—</span></div>
+        <div class="learned-row"><span class="lr-label">DRY temp:</span><span class="lr-dry" id="testDryTempRange">—</span></div>
+      </div>
+    </div>
+
+    <!-- TEST WEIGHTS with SAVE -->
+    <div class="panel">
+      <div class="panel-header">⚖️ Test Weights</div>
+      <div class="vote-weights">
+        <div class="vw-title">Per validator <span>Total = 100%</span></div>
+        <div class="weight-bar-wrap"><span class="weight-ico">🌡️</span><span class="weight-name">Sensor</span><div class="weight-bar-bg"><div class="weight-bar-fill wbf-sensor" id="testBarSensor" style="width:60%"></div></div><input type="number" class="weight-input" id="testWgtSensor" value="60" min="0" max="100" oninput="onWgtChange()"/><span class="weight-pct" id="testPctSensor">60%</span></div>
+        <div class="weight-bar-wrap"><span class="weight-ico">🖼️</span><span class="weight-name">Image kNN</span><div class="weight-bar-bg"><div class="weight-bar-fill wbf-image" id="testBarImage" style="width:20%"></div></div><input type="number" class="weight-input" id="testWgtImage" value="20" min="0" max="100" oninput="onWgtChange()"/><span class="weight-pct" id="testPctImage">20%</span></div>
+        <div class="weight-bar-wrap"><span class="weight-ico">🤖</span><span class="weight-name">Claude AI</span><div class="weight-bar-bg"><div class="weight-bar-fill wbf-claude" id="testBarClaude" style="width:20%"></div></div><input type="number" class="weight-input" id="testWgtClaude" value="20" min="0" max="100" oninput="onWgtChange()"/><span class="weight-pct" id="testPctClaude">20%</span></div>
+        <div class="vw-note" id="testWgtNote" style="color:#4ade80">Total: 100% ✅</div>
+        <div class="row" style="margin-top:4px">
+          <button class="btn-sm btn-save-fb" onclick="saveWeights()">💾 Save Weights</button>
+          <button class="btn-sm btn-load-fb" onclick="loadSettings()">📥 Load Saved</button>
+          <button class="btn-sm" style="background:#1e293b;color:#94a3b8" onclick="resetWeights()">Reset</button>
+          <span class="saved-flash" id="wgtFlash2">✅ Saved!</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">🖼️ kNN Status</div>
+      <div class="knn-box">
+        <div class="knn-title">Features <span id="testKnnStatus" class="knn-empty">NOT LOADED</span></div>
+        <div class="knn-bar-bg"><div class="knn-bar-fill" id="testKnnProgress"></div></div>
+        <div class="knn-counts">
+          <span class="knn-c-tot">Total: <b id="testKnnTotal">0</b></span>
+          <span class="knn-c-wet">WET: <b id="testKnnWet">0</b></span>
+          <span class="knn-c-dry">DRY: <b id="testKnnDry">0</b></span>
+        </div>
+        <button class="btn-load-knn" onclick="loadKnnFeatures()">⬇️ Load & Cache Features</button>
+        <button class="btn-load-knn" style="background:#334155;margin-top:4px" onclick="rebuildKnnCache()">🔄 Rebuild Cache</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-right">
+    <div class="panel"><div class="panel-header">📈 Sensor History</div><div class="chart-wrap"><canvas id="sChartTest"></canvas></div></div>
+    <div class="panel" style="flex:1"><div class="panel-header">📋 Test Log</div><div class="log" id="testLog"><div class="log-entry"><span class="lt">--:--</span><span class="li">Test ready...</span></div></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ SIMULATION TAB ═══════════ -->
+<div id="tab-sim" class="tab-content">
+<div class="sim-main">
+
+  <!-- LEFT: Camera monitor + slot results -->
+  <div class="sim-left">
+
+    <!-- LIVE camera feed with slot overlay -->
+    <div class="camera-box" style="position:relative">
+      <video id="videoSim" autoplay playsinline style="width:100%;display:block;transform:scaleX(1)"></video>
+      <!-- Slot position guide lines overlay -->
+      <canvas id="simOverlayCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas>
+      <div class="status-bar">
+        <div id="simStateBadge" class="sim-state-badge sim-idle">⏸ IDLE</div>
+        <div style="display:flex;gap:6px">
+          <div id="simSlotBadge" class="conf-badge">SLOT —</div>
+          <div id="simLimitBadge" class="conf-badge" style="background:rgba(239,68,68,.4);cursor:pointer" onclick="simConfirmHome()" title="Click to manually confirm home position">HOME ⬜</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 Slot results grid -->
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
+      <div class="slot-card-mini" id="slotCard1">
+        <div class="scm-header"><span class="scm-num">S1</span><span class="scm-label" id="scmLabel1">—</span></div>
+        <div class="scm-result" id="scmResult1">—</div>
+        <div class="scm-hum" id="scmHum1">—%</div>
+        <div class="scm-temp" id="scmTemp1">—°C</div>
+        <div class="scm-color" id="scmColor1" style="width:14px;height:14px;border-radius:50%;background:#334155;margin:4px auto 0"></div>
+        <div class="scm-type" id="scmType1" style="font-size:.6rem;color:#475569;text-align:center;margin-top:2px"></div>
+      </div>
+      <div class="slot-card-mini" id="slotCard2">
+        <div class="scm-header"><span class="scm-num">S2</span><span class="scm-label" id="scmLabel2">—</span></div>
+        <div class="scm-result" id="scmResult2">—</div>
+        <div class="scm-hum" id="scmHum2">—%</div>
+        <div class="scm-temp" id="scmTemp2">—°C</div>
+        <div class="scm-color" id="scmColor2" style="width:14px;height:14px;border-radius:50%;background:#334155;margin:4px auto 0"></div>
+        <div class="scm-type" id="scmType2" style="font-size:.6rem;color:#475569;text-align:center;margin-top:2px"></div>
+      </div>
+      <div class="slot-card-mini" id="slotCard3">
+        <div class="scm-header"><span class="scm-num">S3</span><span class="scm-label" id="scmLabel3">—</span></div>
+        <div class="scm-result" id="scmResult3">—</div>
+        <div class="scm-hum" id="scmHum3">—%</div>
+        <div class="scm-temp" id="scmTemp3">—°C</div>
+        <div class="scm-color" id="scmColor3" style="width:14px;height:14px;border-radius:50%;background:#334155;margin:4px auto 0"></div>
+        <div class="scm-type" id="scmType3" style="font-size:.6rem;color:#475569;text-align:center;margin-top:2px"></div>
+      </div>
+      <div class="slot-card-mini" id="slotCard4">
+        <div class="scm-header"><span class="scm-num">S4</span><span class="scm-label" id="scmLabel4">—</span></div>
+        <div class="scm-result" id="scmResult4">—</div>
+        <div class="scm-hum" id="scmHum4">—%</div>
+        <div class="scm-temp" id="scmTemp4">—°C</div>
+        <div class="scm-color" id="scmColor4" style="width:14px;height:14px;border-radius:50%;background:#334155;margin:4px auto 0"></div>
+        <div class="scm-type" id="scmType4" style="font-size:.6rem;color:#475569;text-align:center;margin-top:2px"></div>
+      </div>
+      <div class="slot-card-mini" id="slotCard5">
+        <div class="scm-header"><span class="scm-num">S5</span><span class="scm-label" id="scmLabel5">—</span></div>
+        <div class="scm-result" id="scmResult5">—</div>
+        <div class="scm-hum" id="scmHum5">—%</div>
+        <div class="scm-temp" id="scmTemp5">—°C</div>
+        <div class="scm-color" id="scmColor5" style="width:14px;height:14px;border-radius:50%;background:#334155;margin:4px auto 0"></div>
+        <div class="scm-type" id="scmType5" style="font-size:.6rem;color:#475569;text-align:center;margin-top:2px"></div>
+      </div>
+    </div>
+
+    <!-- Sim log -->
+    <div class="panel" style="flex:1">
+      <div class="panel-header">📋 Simulation Log</div>
+      <div class="sim-log" id="simLog">
+        <div class="sim-log-entry"><span class="sl-t">--:--</span><span class="sl-info">Simulation ready...</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Controls -->
+  <div class="sim-right">
+
+    <!-- Motor + Timing settings -->
+    <div class="sim-controls">
+      <div class="sim-ctrl-title">⚙️ Motor Settings</div>
+      <div class="sim-slider-group">
+
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.75rem;color:#94a3b8;width:110px;flex-shrink:0">⚡ Scan Speed</span>
+          <input type="number" id="simSpeed" min="0" max="255" step="1" value="50" oninput="markConfigDirty()"
+            style="flex:1;background:#1e293b;border:1px solid #334155;color:#22c55e;border-radius:6px;padding:5px 8px;font-size:.85rem;font-family:monospace;outline:none"/>
+          <span style="font-size:.7rem;color:#475569">PWM 0-255</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.75rem;color:#94a3b8;width:110px;flex-shrink:0">🏠 Home Speed</span>
+          <input type="number" id="simHomeSpeed" min="0" max="255" step="1" value="80" oninput="markConfigDirty()"
+            style="flex:1;background:#1e293b;border:1px solid #334155;color:#f59e0b;border-radius:6px;padding:5px 8px;font-size:.85rem;font-family:monospace;outline:none"/>
+          <span style="font-size:.7rem;color:#475569">PWM 0-255</span>
+        </div>
+
+        <div class="sim-ctrl-title" style="margin-top:8px">⏱️ Slot Timing — type ms directly (0–100000)</div>
+        <div style="font-size:.7rem;color:#475569;margin-bottom:8px">Motor runs for this many ms from home/previous slot. Test with S1–S5 buttons.</div>
+
+        <div id="slotDelays" style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:.75rem;color:#94a3b8;width:110px;flex-shrink:0">🏠 → Slot 1</span>
+            <input type="number" id="delay1" min="0" max="100000" step="100" value="2550"
+              oninput="markConfigDirty()"
+              style="flex:1;background:#1e293b;border:1px solid #334155;color:#38bdf8;border-radius:6px;padding:5px 8px;font-size:.85rem;font-family:monospace;outline:none"/>
+            <span style="font-size:.7rem;color:#475569">ms</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:.75rem;color:#94a3b8;width:110px;flex-shrink:0">S1 → Slot 2</span>
+            <input type="number" id="delay2" min="0" max="100000" step="100" value="2900"
+              oninput="markConfigDirty()"
+              style="flex:1;background:#1e293b;border:1px solid #334155;color:#38bdf8;border-radius:6px;padding:5px 8px;font-size:.85rem;font-family:monospace;outline:none"/>
+            <span style="font-size:.7rem;color:#475569">ms</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:.75rem;color:#94a3b8;width:110px;flex-shrink:0">S2 → Slot 3</span>
+            <input type="number" id="delay3" min="0" max="100000" step="100" value="3200"
+              oninput="markConfigDirty()"
+              style="flex:1;background:#1e293b;border:1px solid #334155;color:#38bdf8;border-radius:6px;padding:5px 8px;font-size:.85rem;font-family:monospace;outline:none"/>
+            <span style="font-size:.7rem;color:#475569">ms</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:.75rem;color:#94a3b8;width:110px;flex-shrink:0">S3 → Slot 4</span>
+            <input type="number" id="delay4" min="0" max="100000" step="100" value="3550"
+              oninput="markConfigDirty()"
+              style="flex:1;background:#1e293b;border:1px solid #334155;color:#38bdf8;border-radius:6px;padding:5px 8px;font-size:.85rem;font-family:monospace;outline:none"/>
+            <span style="font-size:.7rem;color:#475569">ms</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:.75rem;color:#94a3b8;width:110px;flex-shrink:0">S4 → Slot 5</span>
+            <input type="number" id="delay5" min="0" max="100000" step="100" value="2800"
+              oninput="markConfigDirty()"
+              style="flex:1;background:#1e293b;border:1px solid #334155;color:#38bdf8;border-radius:6px;padding:5px 8px;font-size:.85rem;font-family:monospace;outline:none"/>
+            <span style="font-size:.7rem;color:#475569">ms</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;border-top:1px solid #1e293b;padding-top:8px">
+            <span style="font-size:.75rem;color:#94a3b8;width:110px;flex-shrink:0">🏠 Home timeout</span>
+            <input type="number" id="simHomeTimeout" min="1" max="100" step="1" value="30"
+              style="flex:1;background:#1e293b;border:1px solid #334155;color:#f59e0b;border-radius:6px;padding:5px 8px;font-size:.85rem;font-family:monospace;outline:none"/>
+            <span style="font-size:.7rem;color:#475569">s</span>
+          </div>
+          <div style="font-size:.68rem;color:#334155;margin-top:4px">
+            ✅ Limit switch logic handled by Arduino hardware (CW only)
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="btnSaveConfig" onclick="saveSimConfig()" style="flex:1;padding:7px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:#38bdf8;font-size:.75rem;font-weight:700;cursor:pointer">💾 Save Config</button>
+            <button onclick="loadSimConfig()" style="flex:1;padding:7px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:#a78bfa;font-size:.75rem;font-weight:700;cursor:pointer">📂 Load Config</button>
+          </div>
+        </div>
+
+        <div class="row" style="gap:10px;margin-top:8px">
+          <label style="font-size:.78rem;color:#94a3b8">Direction (CCW = away from limit):</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.8rem;color:#e2e8f0">
+            <input type="radio" name="simDir" value="CCW" checked style="accent-color:#6366f1"/> ↺ CCW
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.8rem;color:#e2e8f0">
+            <input type="radio" name="simDir" value="CW" style="accent-color:#6366f1"/> ↻ CW
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <!-- Relay Control -->
+    <div class="sim-controls">
+      <div class="sim-ctrl-title">🔌 Relay Control</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0">
+        <span style="font-size:.82rem;color:#e2e8f0">Pin 7 — UV Light</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="relayStatusTxt" style="font-size:.72rem;font-family:monospace;color:#475569">OFF</span>
+          <button id="btnRelayToggle" onclick="simRelayToggle()"
+            style="padding:7px 18px;border-radius:20px;border:1px solid #334155;background:#1e293b;color:#94a3b8;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s">
+            ⚡ Toggle
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sim-controls">
+      <div class="sim-ctrl-title">🎮 Controls</div>
+      <div class="sim-btn-row three">
+        <button class="btn-sim" style="background:#334155;border:1px solid #475569;color:#94a3b8" id="btnSimHome" onclick="simGoHome()">
+          <span style="font-size:1.3rem">🏠</span>HOME
+          <span style="font-size:.6rem;opacity:.7">To limit switch</span>
+        </button>
+        <button class="btn-sim btn-sim-move" id="btnSimRun" onclick="simRunAll()">
+          <span style="font-size:1.3rem">▶▶</span>RUN ALL
+          <span style="font-size:.6rem;opacity:.7">All 5 slots</span>
+        </button>
+        <button class="btn-sim btn-sim-scan" id="btnSimScanNow" onclick="simScanCurrent()">
+          <span style="font-size:1.3rem">🔍</span>SCAN NOW
+          <span style="font-size:.6rem;opacity:.7">Current slot</span>
+        </button>
+      </div>
+
+      <!-- Individual slot buttons -->
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px">
+        <button class="btn-sim" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px 4px" onclick="simGoToSlot(1)" id="btnSlot1">S1</button>
+        <button class="btn-sim" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px 4px" onclick="simGoToSlot(2)" id="btnSlot2">S2</button>
+        <button class="btn-sim" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px 4px" onclick="simGoToSlot(3)" id="btnSlot3">S3</button>
+        <button class="btn-sim" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px 4px" onclick="simGoToSlot(4)" id="btnSlot4">S4</button>
+        <button class="btn-sim" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px 4px" onclick="simGoToSlot(5)" id="btnSlot5">S5</button>
+      </div>
+
+      <button class="btn-sim btn-sim-estop" id="btnSimStop" onclick="simEStop()">
+        🛑 EMERGENCY STOP
+      </button>
+    </div>
+
+    <!-- Validator toggles -->
+    <div class="sim-controls">
+      <div class="sim-ctrl-title">🔀 Validators</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="row" style="justify-content:space-between;padding:6px 8px;background:#1a1d27;border-radius:8px;border:1px solid #2a2d3a">
+          <span style="font-size:.8rem;color:#e2e8f0">🌡️ Sensor (per slot DHT)</span>
+          <label class="toggle green"><input type="checkbox" id="simToggleSensor" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="row" style="justify-content:space-between;padding:6px 8px;background:#1a1d27;border-radius:8px;border:1px solid #2a2d3a">
+          <span style="font-size:.8rem;color:#e2e8f0">🖼️ Image kNN</span>
+          <label class="toggle green"><input type="checkbox" id="simToggleImage" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="row" style="justify-content:space-between;padding:6px 8px;background:#1a1d27;border-radius:8px;border:1px solid #2a2d3a">
+          <span style="font-size:.8rem;color:#e2e8f0">🤖 Claude AI <span style="font-size:.65rem;color:#475569">(manual SCAN only)</span></span>
+          <label class="toggle red"><input type="checkbox" id="simToggleClaude"/><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="toast-save" id="toastSave">💾 Config saved to Firebase ✅</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, setDoc, getDoc }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getStorage, ref, uploadString, getDownloadURL, deleteObject }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+const FBC={apiKey:"AIzaSyBQV63IRXUjJQKgdcNJszKjomjdkTlgpuM",authDomain:"ehubtest-51d0a.firebaseapp.com",projectId:"ehubtest-51d0a",storageBucket:"ehubtest-51d0a.firebasestorage.app",messagingSenderId:"631221590037",appId:"1:631221590037:web:5deb33cd5cc005dc56961c"};
+const fbApp=initializeApp(FBC);
+const db=getFirestore(fbApp);
+const storage=getStorage(fbApp);
+const SETTINGS_DOC=doc(db,'app_settings','detector_config');
+
+// ── DOM refs — assigned inside initApp after DOM ready ────
+let canvasTrain,canvasTest,c2dTrain,c2dTest;
+
+let flippedTrain=false,flippedTest=false;
+let trainingData=[],serialPort=null,serialReader=null,serialBuf='';
+let latestTemp=null,latestHum=null,sensorHist=[];
+let autoTimer=null,sharedStream=null;
+let serialWriter=null;
+
+
+
+// ════════════════════════════════════════════════════
+//  LOCAL WEBSOCKET — realtime data without Firebase reads
+// ════════════════════════════════════════════════════
+let ws = null;
+let wsRetryTimer = null;
+
+function connectWS(){
+  try{
+    ws = new WebSocket('ws://localhost:8082');
+    ws.onopen  = ()=>{ addLog('📡 WebSocket relay connected','s'); };
+    ws.onclose = ()=>{
+      ws=null;
+      // Retry every 5s — ws_server.py may not be running yet
+      wsRetryTimer=setTimeout(connectWS,5000);
+    };
+    ws.onerror = ()=>{ ws=null; };
+  }catch(e){ wsRetryTimer=setTimeout(connectWS,5000); }
+}
+
+function wsSend(type, data){
+  if(!ws||ws.readyState!==WebSocket.OPEN) return;
+  try{ ws.send(JSON.stringify({type,...data})); }catch(e){}
+}
+
+// ── Buzzer ────────────────────────────────────────────────
+window.sendBuzzer=async(cmd)=>{
+  if(!serialPort||!serialPort.writable){
+    addBuzLog('⚠️ '+cmd+' — Arduino not connected');
+    return;
+  }
+  try{
+    if(!serialWriter){
+      const enc=new TextEncoderStream();
+      enc.readable.pipeTo(serialPort.writable);
+      serialWriter=enc.writable.getWriter();
+    }
+    await serialWriter.write(cmd+'\n');
+    addBuzLog('→ Sent: '+cmd);
+  }catch(e){addBuzLog('❌ '+cmd+': '+e.message);}
+};
+function addBuzLog(msg){
+  const el=document.getElementById('buzzerLog');
+  if(!el)return;
+  const time=new Date().toTimeString().slice(0,8);
+  el.textContent=time+' '+msg+'\n'+el.textContent.slice(0,300);
+}
+
+// ── Tabs ──────────────────────────────────────────────────
+window.switchTab=(tab,btn)=>{
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  btn.classList.add('active');
+  // Always ensure both videos have the stream
+  if(sharedStream){
+    const vTrain=document.getElementById('videoTrain');
+    const vTest =document.getElementById('videoTest');
+    const vSim  =document.getElementById('videoSim');
+    if(!vTrain.srcObject) vTrain.srcObject=sharedStream;
+    if(!vTest.srcObject)  vTest.srcObject=sharedStream;
+    if(vSim&&!vSim.srcObject) vSim.srcObject=sharedStream;
+  } else {
+    startCamera().catch(e=>addLog('Camera: '+e.message,'e'));
+  }
+  if(tab==='sim') loadSimConfig();
+  updateKnnStatus();
+};
+
+// ── Camera ─────────────────────────────────────────────────
+
+async function startCamera(){
+
+  try{
+    // Try HD first, fall back to any camera
+    let constraints={video:{width:{ideal:1280},height:{ideal:720}},audio:false};
+    try{
+      sharedStream=await navigator.mediaDevices.getUserMedia(constraints);
+    }catch(e){
+      addLog('HD camera failed, trying default...','i');
+      sharedStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+    }
+    const vTrain=document.getElementById('videoTrain');
+    const vTest=document.getElementById('videoTest');
+    vTrain.srcObject=sharedStream;
+    vTest.srcObject=sharedStream;
+    // Wait for video to actually play
+    await new Promise((res,rej)=>{
+      vTrain.onloadedmetadata=()=>{ vTrain.play().then(res).catch(res); };
+      vTrain.onerror=rej;
+      setTimeout(res,3000); // fallback timeout
+    });
+    addLog('Camera ready: '+sharedStream.getVideoTracks()[0].label,'i');
+  }catch(e){
+    addLog('Camera error: '+e.message,'e');
+    throw e; // rethrow so initApp can show retry UI
+  }
+}
+window.flipCam=(tab)=>{
+  if(tab==='train'){flippedTrain=!flippedTrain;document.getElementById('videoTrain').style.transform=flippedTrain?'scaleX(1)':'scaleX(-1)';}
+  else{flippedTest=!flippedTest;document.getElementById('videoTest').style.transform=flippedTest?'scaleX(1)':'scaleX(-1)';}
+};
+function capFrame(videoId,canvasEl,ctx,flipped){
+  // Remote mode: use canvas fed by WebSocket frames
+  if(location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
+    if(capFrameRemote(videoId,canvasEl,ctx)) return;
+  }
+  const v=document.getElementById(videoId);
+  canvasEl.width=v.videoWidth||640;canvasEl.height=v.videoHeight||480;
+  ctx.save();if(flipped){ctx.translate(canvasEl.width,0);ctx.scale(-1,1);}
+  ctx.drawImage(v,0,0);ctx.restore();
+  return canvasEl.toDataURL('image/jpeg',0.85);
+}
+window.dlFrame=(canvasId,videoId)=>{
+  const c=document.getElementById(canvasId),v=document.getElementById(videoId),ctx=c.getContext('2d');
+  c.width=v.videoWidth;c.height=v.videoHeight;ctx.drawImage(v,0,0);
+  const a=document.createElement('a');a.href=c.toDataURL('image/jpeg',0.85);a.download='frame_'+Date.now()+'.jpg';a.click();
+  showToast('Frame saved!');
+};
+
+// ── Serial ──────────────────────────────────────────────────
+window.connectSerial=async()=>{
+  if(!('serial' in navigator)){showToast('Use Chrome!');return;}
+  try{
+    const baud=parseInt(document.getElementById('baudRate').value);
+    serialPort=await navigator.serial.requestPort();
+    await serialPort.open({baudRate:baud});
+    setSerialUI(true);addLog('Arduino @ '+baud,'i');readSerial();
+    // Auto-home on every connect — always start from known position
+    setTimeout(async()=>{
+      sendBuzzer('BUZ_CONNECT');
+      await new Promise(r=>setTimeout(r,600));
+      // Send GO_HOME — Arduino nudges CCW if already at limit, then CW to home
+      if(serialWriter){
+        try{
+          await serialWriter.write('GO_HOME\n');
+          addLog('🏠 Auto-homing on connect...','i');
+          addSimLog('🏠 Auto-homing on connect...','move');
+        }catch(e){}
+      }
+    }, 800);
+  }catch(e){addLog('Serial error: '+e.message,'e');}
+};
+window.disconnectSerial=async()=>{
+  try{
+    if(serialReader){
+      try{ await serialReader.cancel(); }catch{}
+      try{ serialReader.releaseLock(); }catch{}
+      serialReader=null;
+    }
+    if(serialWriter){
+      try{ await serialWriter.close(); }catch{}
+      try{ serialWriter.releaseLock(); }catch{}
+      serialWriter=null;
+    }
+    if(serialPort){
+      try{ await serialPort.close(); }catch{}
+      serialPort=null;
+    }
+    setSerialUI(false);
+    addLog('Arduino disconnected','i');
+  }catch(e){ addLog('Disconnect error: '+e.message,'e'); }
+};
+async function readSerial(){
+  // Use TextDecoderStream pipeline correctly
+  const dec = new TextDecoderStream();
+  const pipePromise = serialPort.readable.pipeTo(dec.writable);
+  serialReader = dec.readable.getReader();
+  try{
+    while(true){
+      const{value,done}=await serialReader.read();
+      if(done) break;
+      serialBuf+=value;
+      const ls=serialBuf.split('\n');
+      serialBuf=ls.pop();
+      ls.forEach(l=>{ if(l.trim()) parseSensor(l.trim()); });
+    }
+  }catch(e){
+    // Reader cancelled — normal on disconnect
+  }finally{
+    serialReader.releaseLock();
+  }
+}
+// Throttle Firebase sensor writes — max 1 per 3 seconds
+let lastSensorWrite = 0;
+
+function parseSensor(line){
+  // Let sim parser handle slot DHT and limit switch lines
+  if(typeof _simExtraParse==='function' && _simExtraParse(line)) return;
+  const el=document.getElementById('serialLog');
+  if(el) el.textContent=line+'\n'+el.textContent.slice(0,300);
+  // Skip motor/home status lines — handled by sim tab or just noise
+  if(line.match(/^MOTOR:/)||line.startsWith('MOTOR_OK:')) return;
+  if(line==='NUDGING')     { addLog('↺ Nudging CCW to clear switch...','i'); return; }
+  if(line==='NUDGE_DONE')  { addLog('↻ Nudge done — going CW to home','i'); return; }
+  if(line==='GOING_HOME')  { addLog('↻ Going home CW...','i'); return; }
+  if(line==='LIMIT_HIT')   { addLog('🏠 HOME — limit switch hit','s'); return; }
+  if(line==='LIMIT_STATE:TRIGGERED'){ addLog('🏠 Limit: TRIGGERED','i'); return; }
+  if(line==='LIMIT_STATE:OPEN')     { addLog('Limit: OPEN','i'); return; }
+  if(line.startsWith('SLOT_SET:')||line.startsWith('RELAY_OK:')||
+     line==='READ_ALL_BUSY'||line.startsWith('UNKNOWN:')) return;
+  const m=line.match(/DHT22:([\d.]+)C,([\d.]+)%/);if(!m)return;
+  latestTemp=parseFloat(m[1]);latestHum=parseFloat(m[2]);
+  document.getElementById('tempVal').textContent=latestTemp.toFixed(1);
+  document.getElementById('humVal').textContent=latestHum.toFixed(1);
+  document.getElementById('testTempVal').textContent=latestTemp.toFixed(1);
+  document.getElementById('testHumVal').textContent=latestHum.toFixed(1);
+  sensorHist.push({temp:latestTemp,hum:latestHum});
+  if(sensorHist.length>20)sensorHist.shift();
+  drawChart('sChart');drawChart('sChartTest');
+  updateSensorHints();
+  // Send via WebSocket (no Firebase reads!)
+  wsSend('sensor',{temp:latestTemp, hum:latestHum, slot:1});
+}
+function setSerialUI(on){
+  ['serialStatus','testSerialStatus'].forEach(id=>{const el=document.getElementById(id);el.textContent=on?'CONNECTED':'DISCONNECTED';el.className='tag '+(on?'t-ok':'t-err');});
+  document.getElementById('serialDot').className='status-dot '+(on?'dot-connected':'dot-disconnected');
+  document.getElementById('serialMsg').textContent=on?'Connected — reading DHT22':'Not connected';
+  document.getElementById('btnConnect').style.display=on?'none':'';
+  document.getElementById('btnDisconnect').style.display=on?'':'none';
+}
+function updateSensorHints(){
+  if(!latestHum||!trainingData.length)return;
+  const wetS=trainingData.filter(d=>d.label==='WET'&&d.sensor),dryS=trainingData.filter(d=>d.label==='DRY'&&d.sensor);
+  if(!wetS.length||!dryS.length)return;
+  const avgW=wetS.reduce((s,d)=>s+d.sensor.hum,0)/wetS.length,avgD=dryS.reduce((s,d)=>s+d.sensor.hum,0)/dryS.length;
+  const hint=Math.abs(latestHum-avgW)<Math.abs(latestHum-avgD)?'⚠️ Near WET avg':'✅ Near DRY avg';
+  document.getElementById('humLearned').textContent=hint;
+  document.getElementById('testHumHint').textContent=hint;
+}
+function drawChart(id){
+  const c=document.getElementById(id);if(!c)return;
+  c.width=c.offsetWidth||300;c.height=70;
+  const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);
+  if(sensorHist.length<2)return;
+  const W=c.width,H=c.height,p=4;
+  ctx.fillStyle='#12151f';ctx.fillRect(0,0,W,H);
+  const draw=(k,mx,col)=>{ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();sensorHist.forEach((d,i)=>{const x=p+(i/(sensorHist.length-1))*(W-p*2),y=p+(H-p*2)-(d[k]/mx)*(H-p*2);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();};
+  draw('hum',100,'#38bdf8');draw('temp',50,'#f97316');
+  ctx.fillStyle='#38bdf8';ctx.font='9px monospace';ctx.fillText('HUM%',4,10);
+  ctx.fillStyle='#f97316';ctx.fillText('TEMP',4,20);
+}
+
+// ════════════════════════════════════════════════════════
+//  THRESHOLDS — single source of truth functions
+// ════════════════════════════════════════════════════════
+function applyThresholds(wet,dry){
+  ['wetThr','testWetThr'].forEach(id=>document.getElementById(id).value=wet);
+  ['dryThr','testDryThr'].forEach(id=>document.getElementById(id).value=dry);
+  document.getElementById('wetThrVal').textContent=wet+'%';
+  document.getElementById('dryThrVal').textContent=dry+'%';
+  document.getElementById('wetThrShow').textContent=wet+'%';
+  document.getElementById('dryThrShow').textContent=dry+'%';
+  document.getElementById('testWetThrVal').textContent=wet+'%';
+  document.getElementById('testDryThrVal').textContent=dry+'%';
+  document.getElementById('testWetThrShow').textContent=wet+'%';
+  document.getElementById('testDryThrShow').textContent=dry+'%';
+}
+window.onThrChange=(el)=>{
+  // Only train sliders call this now — test sliders are read-only mirrors
+  const wet = parseInt(document.getElementById('wetThr').value);
+  const dry = parseInt(document.getElementById('dryThr').value);
+  applyThresholds(wet, dry);
+};
+
+// ════════════════════════════════════════════════════════
+//  WEIGHTS — single source of truth
+// ════════════════════════════════════════════════════════
+function applyWeights(s,i,c){
+  document.getElementById('wgtSensor').value=s;
+  document.getElementById('wgtImage').value=i;
+  document.getElementById('wgtClaude').value=c;
+  document.getElementById('testWgtSensor').value=s;
+  document.getElementById('testWgtImage').value=i;
+  document.getElementById('testWgtClaude').value=c;
+  refreshWeightUI();
+}
+function refreshWeightUI(){
+  const s=parseInt(document.getElementById('wgtSensor').value)||0;
+  const i=parseInt(document.getElementById('wgtImage').value)||0;
+  const c=parseInt(document.getElementById('wgtClaude').value)||0;
+  const t=s+i+c;
+  // Train bars
+  document.getElementById('barSensor').style.width=s+'%';
+  document.getElementById('barImage').style.width=i+'%';
+  document.getElementById('barClaude').style.width=c+'%';
+  document.getElementById('pctSensor').textContent=s+'%';
+  document.getElementById('pctImage').textContent=i+'%';
+  document.getElementById('pctClaude').textContent=c+'%';
+  // Test bars
+  document.getElementById('testBarSensor').style.width=s+'%';
+  document.getElementById('testBarImage').style.width=i+'%';
+  document.getElementById('testBarClaude').style.width=c+'%';
+  document.getElementById('testPctSensor').textContent=s+'%';
+  document.getElementById('testPctImage').textContent=i+'%';
+  document.getElementById('testPctClaude').textContent=c+'%';
+  // Vote badges
+  document.getElementById('wSensor').textContent='wt:'+s+'%';
+  document.getElementById('wImage').textContent='wt:'+i+'%';
+  document.getElementById('wAI').textContent='wt:'+c+'%';
+  document.getElementById('bdSensorWt').textContent='wt:'+s+'%';
+  document.getElementById('bdImageWt').textContent='wt:'+i+'%';
+  document.getElementById('bdClaudeWt').textContent='wt:'+c+'%';
+  // Notes
+  const noteColor=t===100?'#4ade80':t<100?'#f59e0b':'#f87171';
+  const noteText=t===100?'Total: 100% ✅':'Total: '+t+'%';
+  document.getElementById('wgtNote').textContent=noteText;
+  document.getElementById('wgtNote').style.color=noteColor;
+  document.getElementById('testWgtNote').textContent=noteText;
+  document.getElementById('testWgtNote').style.color=noteColor;
+}
+window.onWgtChange=()=>{
+  // Sync test sliders from train (or vice versa — take whichever just changed)
+  const s=parseInt(document.getElementById('wgtSensor').value)||0;
+  const i=parseInt(document.getElementById('wgtImage').value)||0;
+  const c=parseInt(document.getElementById('wgtClaude').value)||0;
+  document.getElementById('testWgtSensor').value=s;
+  document.getElementById('testWgtImage').value=i;
+  document.getElementById('testWgtClaude').value=c;
+  refreshWeightUI();
+};
+window.resetWeights=()=>applyWeights(60,20,20);
+
+// ════════════════════════════════════════════════════════
+//  FIREBASE SAVE/LOAD — separate functions for each section
+// ════════════════════════════════════════════════════════
+async function flashSaved(id){
+  const el=document.getElementById(id);
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+window.saveThresholds=async()=>{
+  try{
+    const wet=parseInt(document.getElementById('wetThr').value);
+    const dry=parseInt(document.getElementById('dryThr').value);
+    const useLearned=document.getElementById('useLearnedRanges').checked;
+    const testUseLearned=document.getElementById('testUseLearned').checked;
+    // Merge with existing doc so we don't overwrite other fields
+    await setDoc(SETTINGS_DOC,{wetThr:wet,dryThr:dry,useLearned,testUseLearned,savedAt:new Date().toISOString()},{merge:true});
+    flashSaved('thrFlash');flashSaved('thrFlash2');
+    showToast('✅ Thresholds saved! WET>'+wet+'% DRY<'+dry+'%');sendBuzzer('BUZ_SAVED');
+    addLog('Thresholds saved to Firebase: WET>'+wet+'% DRY<'+dry+'%','s');
+  }catch(e){showToast('❌ Save failed: '+e.message);addLog('Save error: '+e.message,'e');}
+};
+
+window.saveWeights=async()=>{
+  try{
+    const s=parseInt(document.getElementById('wgtSensor').value)||0;
+    const i=parseInt(document.getElementById('wgtImage').value)||0;
+    const c=parseInt(document.getElementById('wgtClaude').value)||0;
+    if(s+i+c!==100){showToast('⚠️ Weights must total 100%!');return;}
+    await setDoc(SETTINGS_DOC,{weights:{sensor:s,image:i,claude:c},savedAt:new Date().toISOString()},{merge:true});
+    flashSaved('wgtFlash');flashSaved('wgtFlash2');
+    showToast('✅ Weights saved! S:'+s+'% I:'+i+'% C:'+c+'%');sendBuzzer('BUZ_SAVED');
+    addLog('Weights saved to Firebase: S:'+s+'% I:'+i+'% C:'+c+'%','s');
+  }catch(e){showToast('❌ Save failed: '+e.message);addLog('Save error: '+e.message,'e');}
+};
+
+window.saveToggles=async()=>{
+  try{
+    const toggles={
+      sensor:document.getElementById('toggleSensor').checked,
+      image:document.getElementById('toggleImage').checked,
+      claude:document.getElementById('toggleClaude').checked
+    };
+    await setDoc(SETTINGS_DOC,{toggles,savedAt:new Date().toISOString()},{merge:true});
+    flashSaved('togFlash');
+    showToast('✅ Toggles saved!');
+    addLog('Toggles saved to Firebase','s');
+  }catch(e){showToast('❌ Save failed: '+e.message);}
+};
+
+window.loadSettings=async()=>{
+  try{
+    const snap=await getDoc(SETTINGS_DOC);
+    if(!snap.exists()){showToast('No saved settings found in Firebase');return;}
+    const s=snap.data();
+    // Apply thresholds
+    if(s.wetThr!==undefined&&s.dryThr!==undefined){
+      applyThresholds(s.wetThr,s.dryThr);
+      addLog('Loaded thresholds: WET>'+s.wetThr+'% DRY<'+s.dryThr+'%','i');
+    }
+    if(s.useLearned!==undefined)document.getElementById('useLearnedRanges').checked=s.useLearned;
+    if(s.testUseLearned!==undefined)document.getElementById('testUseLearned').checked=s.testUseLearned;
+    // Apply weights
+    if(s.weights){
+      applyWeights(s.weights.sensor||60,s.weights.image||20,s.weights.claude||20);
+      addLog('Loaded weights: S:'+s.weights.sensor+'% I:'+s.weights.image+'% C:'+s.weights.claude+'%','i');
+    }
+    // Apply toggles
+    if(s.toggles){
+      document.getElementById('toggleSensor').checked=s.toggles.sensor!==false;
+      document.getElementById('toggleImage').checked=s.toggles.image!==false;
+      document.getElementById('toggleClaude').checked=s.toggles.claude!==false;
+      onToggleChange();
+      addLog('Loaded toggles: S='+(s.toggles.sensor?'ON':'OFF')+' I='+(s.toggles.image?'ON':'OFF')+' C='+(s.toggles.claude?'ON':'OFF'),'i');
+    }
+    // Apply SMS settings
+    applySmsSettings(s);
+    const when=s.savedAt?new Date(s.savedAt).toLocaleString():'unknown';
+    showToast('✅ Settings loaded! (saved: '+when+')');
+    addLog('All settings loaded from Firebase','i');
+    addTestLog('Settings loaded from Firebase','i');
+  }catch(e){showToast('❌ Load failed: '+e.message);addLog('Load error: '+e.message,'e');}
+};
+
+// ── Toggle logic ───────────────────────────────────────────
+window.onToggleChange=()=>{
+  const s=document.getElementById('toggleSensor').checked;
+  const i=document.getElementById('toggleImage').checked;
+  const c=document.getElementById('toggleClaude').checked;
+  const upd=(suffix,on)=>{
+    document.getElementById('badge'+suffix).textContent=on?'ON':'OFF';
+    document.getElementById('badge'+suffix).className='vt-badge '+(on?'on':'off');
+    document.getElementById('toggleRow'+suffix).className='vt-row'+(on?'':' disabled');
+    document.getElementById('bd'+suffix+'Cell').className='breakdown-cell'+(on?'':' skipped');
+    document.getElementById('bd'+suffix+'Skip').style.display=on?'none':'block';
+  };
+  upd('Sensor',s);upd('Image',i);upd('Claude',c);
+};
+
+// ── API Key ─────────────────────────────────────────────────
+window.saveApiKey=()=>{
+  const k=document.getElementById('apiKeyInput').value.trim();
+  if(!k.startsWith('sk-ant')){showToast('Key must start with sk-ant');return;}
+  localStorage.setItem('ak',k);showToast('API key saved!');addLog('API key saved','i');
+};
+function getApiKey(){const k=localStorage.getItem('ak')||'';if(k)document.getElementById('apiKeyInput').value=k;return k;}
+
+// ════════════════════════════════════════════════════════
+//  SEMAPHORE SMS
+// ════════════════════════════════════════════════════════
+let phoneNumbers   = [];  // array of PH numbers
+let lastSmsTime    = 0;   // prevent spam — 1 SMS per 60s max
+const SMS_COOLDOWN = 60000;
+
+function normalizePH(num){
+  // Convert 09XX or +639XX to 639XX (Semaphore format)
+  num = num.trim().replace(/\s/g,'');
+  if(num.startsWith('09'))    return '63'+num.slice(1);
+  if(num.startsWith('+63'))   return num.slice(1);
+  if(num.startsWith('639'))   return num;
+  return num;
+}
+
+function addPhone(){
+  const input = document.getElementById('smsNumberInput');
+  let raw = input.value.trim();
+  if(!raw){showToast('Enter a phone number first');return;}
+  const norm = normalizePH(raw);
+  if(!/^639\d{9}$/.test(norm)){
+    showToast('Invalid PH number — use 09XXXXXXXXX or +639XXXXXXXXX');
+    return;
+  }
+  if(phoneNumbers.includes(norm)){showToast('Number already added');return;}
+  phoneNumbers.push(norm);
+  input.value='';
+  renderPhones();
+  addSmsLog('Added: +'+norm);
+}
+window.addPhone=addPhone;
+
+function removePhone(num){
+  phoneNumbers=phoneNumbers.filter(n=>n!==num);
+  renderPhones();
+}
+window.removePhone=removePhone;
+
+function renderPhones(){
+  const wrap=document.getElementById('phonesWrap');
+  if(!wrap) return;
+  if(!phoneNumbers.length){
+    wrap.innerHTML='<span style="font-size:.72rem;color:#334155">No numbers added yet</span>';
+    return;
+  }
+  wrap.innerHTML=phoneNumbers.map(n=>
+    `<span class="phone-tag">📱 +${n} <button onclick="removePhone('${n}')">✕</button></span>`
+  ).join('');
+}
+
+window.onSmsToggle=()=>{
+  const on=document.getElementById('smsEnabled').checked;
+  const tag=document.getElementById('smsStatusTag');
+  tag.textContent=on?'ON':'OFF';
+  tag.className='tag '+(on?'t-ok':'t-err');
+  addSmsLog('SMS alerts '+(on?'ENABLED':'DISABLED'));
+  addLog('SMS alerts '+(on?'enabled':'disabled'),'i');
+};
+
+function addSmsLog(msg){
+  const el=document.getElementById('smsLog');
+  if(!el)return;
+  const time=new Date().toTimeString().slice(0,8);
+  el.textContent=time+' '+msg+'\n'+el.textContent.slice(0,500);
+}
+
+async function sendSms(numbers, message){
+  const apiKey   = document.getElementById('semaphoreKey').value.trim();
+  if(!apiKey){ addSmsLog('❌ No Semaphore API key'); return false; }
+  const sender   = document.getElementById('semaphoreSender').value.trim() || 'SMARTDRYER';
+  const results  = [];
+
+  for(const num of numbers){
+    const ok = await sendSmsViaForm(apiKey, num, message, sender);
+    results.push(ok);
+  }
+  return results.some(Boolean);
+}
+
+async function sendSmsViaForm(apiKey, number, message, sender){
+  // Uses hidden iframe form POST — bypasses CORS, works directly from browser
+  return new Promise(res=>{
+    try{
+      const iframeName = 'sms_frame_'+Date.now();
+      const iframe     = document.createElement('iframe');
+      iframe.name      = iframeName;
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+
+      const form       = document.createElement('form');
+      form.method      = 'POST';
+      form.action      = 'https://api.semaphore.co/api/v4/messages';
+      form.target      = iframeName;
+      form.style.display = 'none';
+
+      const fields = {apikey:apiKey, number:number, message:message, sendername:sender};
+      for(const[k,v] of Object.entries(fields)){
+        const inp  = document.createElement('input');
+        inp.type   = 'hidden';
+        inp.name   = k;
+        inp.value  = v;
+        form.appendChild(inp);
+      }
+
+      document.body.appendChild(form);
+      form.submit();
+
+      setTimeout(()=>{
+        try{ document.body.removeChild(form); }catch{}
+        try{ document.body.removeChild(iframe); }catch{}
+        addSmsLog('✅ SMS sent to +'+number);
+        addLog('📱 SMS sent to +'+number,'s');
+        res(true);
+      }, 2000);
+
+    }catch(e){
+      addSmsLog('❌ SMS failed: '+e.message);
+      res(false);
+    }
+  });
+}
+
+
+
+async function sendDryAlert(){
+  if(!document.getElementById('smsEnabled').checked) return;
+  if(!phoneNumbers.length){addSmsLog('⚠️ No numbers configured');return;}
+
+  // Cooldown — prevent SMS spam
+  const now=Date.now();
+  if(now-lastSmsTime<SMS_COOLDOWN){
+    const remaining=Math.round((SMS_COOLDOWN-(now-lastSmsTime))/1000);
+    addSmsLog('⏳ Cooldown — next SMS in '+remaining+'s');
+    return;
+  }
+
+  // Build message with live values
+  let msg=document.getElementById('smsDryMsg').value||'ALERT: Clothes are WET! Hum: {HUM}% Temp: {TEMP}C';
+  msg=msg.replace('{HUM}', latestHum!==null?latestHum.toFixed(1):'--');
+  msg=msg.replace('{TEMP}', latestTemp!==null?latestTemp.toFixed(1):'--');
+
+  addSmsLog('📤 Sending DRY alert to '+phoneNumbers.length+' number(s)...');
+  const ok=await sendSms(phoneNumbers, msg);
+  if(ok){
+    lastSmsTime=now;
+    showToast('📱 DRY alert SMS sent!');
+  }
+}
+window.sendDryAlert=sendDryAlert;
+
+window.testSms=async()=>{
+  if(!phoneNumbers.length){showToast('Add a phone number first!');return;}
+  const apiKey=document.getElementById('semaphoreKey').value.trim();
+  if(!apiKey){showToast('Enter Semaphore API key first!');return;}
+  addSmsLog('📤 Sending test SMS...');
+  const msg='TEST: Smart Dryer is connected! Humidity: '+(latestHum?latestHum.toFixed(1)+'%':'--')+' Temp: '+(latestTemp?latestTemp.toFixed(1)+'°C':'--');
+  await sendSms(phoneNumbers, msg);
+};
+
+window.saveSmsSettings=async()=>{
+  try{
+    const settings={
+      smsEnabled:   document.getElementById('smsEnabled').checked,
+      semaphoreKey: document.getElementById('semaphoreKey').value.trim(),
+      semaphoreSender: document.getElementById('semaphoreSender').value.trim(),
+      phoneNumbers: phoneNumbers,
+      smsDryMsg:    document.getElementById('smsDryMsg').value,
+      savedAt:      new Date().toISOString()
+    };
+    await setDoc(SETTINGS_DOC, settings, {merge:true});
+    showToast('✅ SMS settings saved!');
+    addSmsLog('Settings saved to Firebase');
+    addLog('SMS settings saved','s');
+  }catch(e){showToast('❌ Save failed: '+e.message);}
+};
+
+function applySmsSettings(s){
+  if(s.smsEnabled!==undefined){
+    document.getElementById('smsEnabled').checked=s.smsEnabled;
+    onSmsToggle();
+  }
+  if(s.semaphoreKey)  document.getElementById('semaphoreKey').value=s.semaphoreKey;
+  if(s.semaphoreSender) document.getElementById('semaphoreSender').value=s.semaphoreSender;
+  if(s.phoneNumbers&&Array.isArray(s.phoneNumbers)){
+    phoneNumbers=s.phoneNumbers;
+    renderPhones();
+  }
+  if(s.smsDryMsg) document.getElementById('smsDryMsg').value=s.smsDryMsg;
+}
+
+// ── Ground Truth Save ──────────────────────────────────────
+window.saveGroundTruth=async(label)=>{
+  const cb=document.querySelector('#tab-train .camera-box');
+  cb.style.border=label==='WET'?'4px solid #dc2626':'4px solid #16a34a';
+  setTimeout(()=>cb.style.border='2px solid #2a2d3a',800);
+  showToast('Saving '+label+'...');addLog('YOU decided: '+label,'s');
+  try{
+    capFrame('videoTrain',canvasTrain,c2dTrain,flippedTrain);
+    const b64=canvasTrain.toDataURL('image/jpeg',0.85).split(',')[1];
+    const fn='training/'+label+'_'+Date.now()+'.jpg';
+    await uploadString(ref(storage,fn),b64,'base64',{contentType:'image/jpeg'});
+    const url=await getDownloadURL(ref(storage,fn));
+    const record={label,url,filename:fn,sensor:latestHum!==null?{temp:latestTemp,hum:latestHum}:null,groundTruth:true,decidedBy:'human',timestamp:new Date().toISOString()};
+    const dr=await addDoc(collection(db,'training_images'),record);
+    trainingData.unshift({id:dr.id,...record,_feat:null});
+    updateStats();renderGallery();updateLearnedRanges();
+    const sn=latestHum!==null?` | ${latestTemp?.toFixed(1)}°C, ${latestHum?.toFixed(1)}%`:'';
+    showToast('✅ '+label+sn);addLog('Saved '+label+sn,'s');
+    setTrainStatus(label,1.0);sendBuzzer(label==='WET'?'BUZ_WET':'BUZ_DRY');
+    const feat=await loadFeatForItem(trainingData[0]);
+    if(feat)trainingData[0]._feat=feat;
+    updateKnnStatus();
+  }catch(e){addLog('Error: '+e.message,'e');showToast('Failed');}
+};
+
+// ── Delete ──────────────────────────────────────────────────
+window.deleteAllTraining=async()=>{
+  if(!trainingData.length){showToast('No data!');return;}
+  if(!confirm('DELETE ALL '+trainingData.length+' training images?'))return;
+  for(const item of trainingData){try{await deleteDoc(doc(db,'training_images',item.id));try{await deleteObject(ref(storage,item.filename));}catch{}}catch(e){}}
+  trainingData=[];updateStats();renderGallery();updateLearnedRanges();updateKnnStatus();
+  showToast('All deleted');addLog('All deleted','e');
+};
+window.deleteTraining=async(id,fn)=>{
+  if(!confirm('Delete?'))return;
+  try{
+    await deleteDoc(doc(db,'training_images',id));try{await deleteObject(ref(storage,fn));}catch{}
+    trainingData=trainingData.filter(d=>d.id!==id);
+    updateStats();renderGallery();updateLearnedRanges();updateKnnStatus();showToast('Deleted');
+  }catch(e){showToast('Failed');}
+};
+
+// ── Image features ──────────────────────────────────────────
+function exf(d){
+  let sb=0,sd=0,rs=0,gs=0,bs=0,n=0;
+  for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],b=d[i+2],gr=.299*r+.587*g+.114*b;sb+=gr;if(gr<80)sd++;rs+=r;gs+=g;bs+=b;n++;}
+  const mb=sb/n,dr=sd/n,mr=rs/n,mg=gs/n,mb2=bs/n;
+  const sat=(Math.max(mr,mg,mb2)-Math.min(mr,mg,mb2))/255;
+  let v=0;for(let i=0;i<d.length;i+=4){const gr=.299*d[i]+.587*d[i+1]+.114*d[i+2];v+=(gr-mb)**2;}
+  return[mb/255,Math.sqrt(v/n)/255,dr,sat,mr/255,mg/255,mb2/255];
+}
+function frameFeats(canvasEl,ctx,videoId,flipped){
+  capFrame(videoId,canvasEl,ctx,flipped);
+  const sz=128,tmp=document.createElement('canvas');tmp.width=tmp.height=sz;
+  tmp.getContext('2d').drawImage(canvasEl,0,0,sz,sz);
+  return exf(tmp.getContext('2d').getImageData(0,0,sz,sz).data);
+}
+async function loadFeatForItem(item){
+  return new Promise(async res=>{
+    try{
+      const resp=await fetch(item.url);const blob=await resp.blob();const blobUrl=URL.createObjectURL(blob);
+      const img=new Image();
+      img.onload=()=>{const sz=128,tmp=document.createElement('canvas');tmp.width=tmp.height=sz;tmp.getContext('2d').drawImage(img,0,0,sz,sz);res(exf(tmp.getContext('2d').getImageData(0,0,sz,sz).data));URL.revokeObjectURL(blobUrl);};
+      img.onerror=()=>{URL.revokeObjectURL(blobUrl);res(null);};
+      img.crossOrigin='anonymous';img.src=blobUrl;
+    }catch(e){res(null);}
+  });
+}
+const euc=(a,b)=>Math.sqrt(a.reduce((s,v,i)=>s+(v-b[i])**2,0));
+
+// ── Feature cache key in Firestore ────────────────────────
+const FEAT_CACHE_DOC = doc(db,'app_settings','knn_feature_cache');
+
+async function saveFeatCacheToFirebase(cache){
+  // Firestore doc limit is 1MB — split into chunks of 300 items each
+  const ids    = Object.keys(cache);
+  const CHUNK  = 300;
+  const chunks = [];
+  for(let i=0;i<ids.length;i+=CHUNK){
+    const obj={};
+    ids.slice(i,i+CHUNK).forEach(k=>obj[k]=cache[k]);
+    chunks.push(obj);
+  }
+  try{
+    for(let i=0;i<chunks.length;i++){
+      const chunkDoc=doc(db,'app_settings','knn_cache_'+i);
+      await setDoc(chunkDoc,{
+        chunk: i,
+        total_chunks: chunks.length,
+        data: JSON.stringify(chunks[i]),
+        savedAt: new Date().toISOString()
+      });
+    }
+    // Save index doc so we know how many chunks exist
+    await setDoc(FEAT_CACHE_DOC,{
+      total_chunks: chunks.length,
+      total_items:  ids.length,
+      savedAt: new Date().toISOString()
+    });
+    addLog('Feature cache saved: '+ids.length+' items in '+chunks.length+' chunks','s');
+  }catch(e){addLog('Cache save error: '+e.message,'e');}
+}
+
+async function loadFeatCacheFromFirebase(){
+  try{
+    // Load index first
+    const indexSnap=await getDoc(FEAT_CACHE_DOC);
+    if(!indexSnap.exists()){
+      addLog('No feature cache found — will download images','i');
+      return {};
+    }
+    const meta=indexSnap.data();
+    // Support old single-doc format
+    if(meta.cache){
+      const cache=JSON.parse(meta.cache||'{}');
+      addLog('Cache loaded (legacy): '+Object.keys(cache).length+' items','i');
+      return cache;
+    }
+    // New chunked format
+    const totalChunks=meta.total_chunks||1;
+    const combined={};
+    for(let i=0;i<totalChunks;i++){
+      const chunkDoc=doc(db,'app_settings','knn_cache_'+i);
+      const snap=await getDoc(chunkDoc);
+      if(snap.exists()){
+        const parsed=JSON.parse(snap.data().data||'{}');
+        Object.assign(combined,parsed);
+      }
+    }
+    addLog('Feature cache loaded: '+Object.keys(combined).length+' items from '+totalChunks+' chunks','i');
+    return combined;
+  }catch(e){addLog('Cache load error: '+e.message+' — will re-download','e');return {};}
+}
+
+window.loadKnnFeatures=async(forceRefresh=false)=>{
+  if(!trainingData.length){showToast('No training data!');return;}
+  const btn=document.getElementById('btnLoadKnn');
+  btn.disabled=true;btn.textContent='⏳ Checking cache...';
+  addLog('Loading kNN features...','i');addTestLog('Loading kNN features...','i');
+
+  // ── Step 1: Try loading from Firebase cache first ──────
+  let cache={};
+  if(!forceRefresh){
+    btn.textContent='📥 Loading cache...';
+    cache=await loadFeatCacheFromFirebase();
+  }
+
+  // Apply cached features instantly
+  let fromCache=0;
+  for(const item of trainingData){
+    if(cache[item.id]){
+      item._feat=new Float32Array(cache[item.id]);
+      fromCache++;
+    }
+  }
+
+  if(fromCache>0){
+    updateKnnStatus();
+    addLog('Restored '+fromCache+' features from cache instantly!','s');
+    addTestLog('Cache hit: '+fromCache+' features ready','s');
+  }
+
+  // ── Step 2: Download only MISSING features ─────────────
+  const missing=trainingData.filter(d=>!d._feat);
+  if(missing.length===0){
+    btn.disabled=false;btn.textContent='⬇️ Load & Cache Features';
+    updateKnnStatus();renderGallery();
+    showToast('✅ kNN ready! '+fromCache+' from cache (instant)');
+    return;
+  }
+
+  addLog('Downloading '+missing.length+' missing features...','i');
+  btn.textContent='⬇️ Downloading '+missing.length+'...';
+
+  let downloaded=0,failed=0;
+  const newCache={...cache};
+
+  for(let i=0;i<missing.length;i++){
+    const item=missing[i];
+    const feat=await loadFeatForItem(item);
+    if(feat){
+      item._feat=feat;
+      newCache[item.id]=Array.from(feat); // store as plain array for JSON
+      downloaded++;
+    }else{
+      item._feat=null;failed++;
+    }
+    // Update progress based on total
+    const totalDone=fromCache+downloaded+failed;
+    const pct=Math.round((totalDone/trainingData.length)*100);
+    document.getElementById('knnProgress').style.width=pct+'%';
+    document.getElementById('testKnnProgress').style.width=pct+'%';
+    btn.textContent='⬇️ '+downloaded+'/'+missing.length+' new...';
+  }
+
+  // ── Step 3: Save updated cache back to Firebase ────────
+  if(downloaded>0){
+    btn.textContent='💾 Saving cache...';
+    await saveFeatCacheToFirebase(newCache);
+  }
+
+  btn.disabled=false;btn.textContent='⬇️ Load & Cache Features';
+  updateKnnStatus();renderGallery();
+  const msg='Cache:'+fromCache+' New:'+downloaded+(failed?' Fail:'+failed:'');
+  addLog('kNN ready! '+msg,'i');
+  addTestLog('kNN ready! '+msg,'i');
+  showToast('✅ kNN ready! '+msg);
+};
+
+// Force re-download all features and rebuild cache
+window.rebuildKnnCache=async()=>{
+  if(!confirm('Re-download ALL '+trainingData.length+' image features? This will take a while.'))return;
+  addLog('Rebuilding full feature cache...','i');
+  for(const item of trainingData) item._feat=null;
+  await loadKnnFeatures(true);
+};
+function updateKnnStatus(){
+  const loaded=trainingData.filter(d=>d._feat).length;
+  const wet=trainingData.filter(d=>d._feat&&d.label==='WET').length;
+  const dry=trainingData.filter(d=>d._feat&&d.label==='DRY').length;
+  const pct=trainingData.length>0?Math.round((loaded/trainingData.length)*100):0;
+  ['knnProgress','testKnnProgress'].forEach(id=>document.getElementById(id).style.width=pct+'%');
+  document.getElementById('knnTotal').textContent=loaded;document.getElementById('knnWet').textContent=wet;document.getElementById('knnDry').textContent=dry;
+  document.getElementById('testKnnTotal').textContent=loaded;document.getElementById('testKnnWet').textContent=wet;document.getElementById('testKnnDry').textContent=dry;
+  const lbl=loaded===0?'NOT LOADED':loaded<trainingData.length?loaded+'/'+trainingData.length+' LOADED':'READY ✅';
+  const cls=loaded===0?'knn-empty':loaded<trainingData.length?'knn-loading':'knn-ready';
+  document.getElementById('knnStatusLabel').textContent=lbl;document.getElementById('knnStatusLabel').className=cls;
+  document.getElementById('testKnnStatus').textContent=lbl;document.getElementById('testKnnStatus').className=cls;
+}
+
+// ── Votes ────────────────────────────────────────────────────
+function sensorVote(hum,useLearned,wetThrId,dryThrId){
+  if(hum===null)return{label:null,conf:0};
+
+  // ── Always use manual sliders as primary decision ──────
+  // Manual sliders are the ground truth — learned ranges only
+  // provide a hint but NEVER override a clear threshold decision.
+  const wt=parseInt(document.getElementById(wetThrId).value);
+  const dt=parseInt(document.getElementById(dryThrId).value);
+
+  // Clear WET: above WET threshold
+  if(hum>=wt) return{label:'WET',conf:Math.min(0.5+(hum-wt)/30,1.0)};
+  // Clear DRY: below DRY threshold
+  if(hum<=dt) return{label:'DRY',conf:Math.min(0.5+(dt-hum)/30,1.0)};
+
+  // ── In uncertain zone (between DRY and WET threshold) ─
+  // Use learned ranges to break the tie if available
+  const wetS=trainingData.filter(d=>d.label==='WET'&&d.sensor);
+  const dryS=trainingData.filter(d=>d.label==='DRY'&&d.sensor);
+  if(useLearned&&wetS.length&&dryS.length){
+    const avgW=wetS.reduce((s,d)=>s+d.sensor.hum,0)/wetS.length;
+    const avgD=dryS.reduce((s,d)=>s+d.sensor.hum,0)/dryS.length;
+    const midpoint=(avgW+avgD)/2;
+    const label=hum>=midpoint?'WET':'DRY';
+    const conf=Math.min(0.5+Math.abs(hum-midpoint)/50,0.75); // cap at 75% in uncertain zone
+    return{label,conf};
+  }
+
+  // Truly uncertain — no learned data
+  return{label:null,conf:0};
+}
+function knnVote(canvasEl,ctx,videoId,flipped){
+  const loaded=trainingData.filter(d=>d._feat);
+  if(!loaded.length)return{label:'NO DATA',conf:0};
+  const feat=frameFeats(canvasEl,ctx,videoId,flipped);
+  const dists=loaded.map(t=>({d:euc(feat,t._feat),l:t.label})).sort((a,b)=>a.d-b.d);
+  const k=Math.min(5,dists.length),top=dists.slice(0,k);
+  const wv=top.filter(x=>x.l==='WET').length,dv=top.filter(x=>x.l==='DRY').length;
+  return{label:wv>dv?'WET':'DRY',conf:Math.max(wv,dv)/k};
+}
+function parseAI(txt){
+  let s=txt.trim().replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/,'').trim();
+  try{return JSON.parse(s);}catch{}
+  const m=s.match(/\{[\s\S]*?\}/);if(m){try{return JSON.parse(m[0]);}catch{}}
+  const st=(/(?:status["'\s:]+)(WET|DRY)/i.exec(s)||[])[1]||'UNKNOWN';
+  const cf=parseFloat((/confidence["'\s:]+([0-9.]+)/i.exec(s)||[])[1])||0;
+  return{status:st.toUpperCase(),confidence:cf,guidance:''};
+}
+async function claudeVote(canvasEl,ctx,videoId,flipped,sensorResult,knnResult){
+  // Claude is now the JUDGE — it receives:
+  // 1. The live camera image (visual analysis)
+  // 2. Sensor reading + what sensor voted
+  // 3. kNN result + training stats
+  // Then it reasons through ALL evidence and gives final WET/DRY verdict.
+
+  const key=getApiKey();if(!key)return{label:null,conf:0,tip:'No API key'};
+  try{
+    capFrame(videoId,canvasEl,ctx,flipped);
+    const b64=canvasEl.toDataURL('image/jpeg',0.85).split(',')[1];
+
+    // ── Build training context ─────────────────────────────
+    const wetS=trainingData.filter(d=>d.label==='WET'&&d.sensor);
+    const dryS=trainingData.filter(d=>d.label==='DRY'&&d.sensor);
+    const wn=trainingData.filter(d=>d.label==='WET').length;
+    const dn=trainingData.filter(d=>d.label==='DRY').length;
+
+    const avgWetHum = wetS.length?(wetS.reduce((s,d)=>s+d.sensor.hum,0)/wetS.length).toFixed(1):null;
+    const avgDryHum = dryS.length?(dryS.reduce((s,d)=>s+d.sensor.hum,0)/dryS.length).toFixed(1):null;
+    const avgWetTemp= wetS.length?(wetS.reduce((s,d)=>s+d.sensor.temp,0)/wetS.length).toFixed(1):null;
+    const avgDryTemp= dryS.length?(dryS.reduce((s,d)=>s+d.sensor.temp,0)/dryS.length).toFixed(1):null;
+    const minWetHum = wetS.length?Math.min(...wetS.map(d=>d.sensor.hum)).toFixed(1):null;
+    const maxDryHum = dryS.length?Math.max(...dryS.map(d=>d.sensor.hum)).toFixed(1):null;
+
+    // ── Sensor evidence block ─────────────────────────────
+    const sensorBlock = latestHum !== null
+      ? `SENSOR READING: ${latestTemp?.toFixed(1)}°C, ${latestHum?.toFixed(1)}% humidity.
+Sensor vote: ${sensorResult?.label||'UNCERTAIN'} (conf ${Math.round((sensorResult?.conf||0)*100)}%).
+Trained WET avg humidity: ${avgWetHum||'N/A'}% (min ${minWetHum||'N/A'}%).
+Trained DRY avg humidity: ${avgDryHum||'N/A'}% (max ${maxDryHum||'N/A'}%).
+Trained WET avg temp: ${avgWetTemp||'N/A'}°C. Trained DRY avg temp: ${avgDryTemp||'N/A'}°C.`
+      : 'SENSOR READING: Not available.';
+
+    // ── kNN evidence block ────────────────────────────────
+    const knnBlock = knnResult
+      ? `IMAGE kNN VOTE: ${knnResult.label||'NO DATA'} (conf ${Math.round((knnResult.conf||0)*100)}%).
+kNN compared current image against ${wn} WET and ${dn} DRY labeled training photos.`
+      : `IMAGE kNN: Not available. Training set: ${wn} WET, ${dn} DRY photos.`;
+
+    // ── Full prompt — Claude as judge ─────────────────────
+    const prompt =
+`You are an expert IoT clothes drying validator. Your role is to make a final WET or DRY judgment.
+
+DECISION HIERARCHY — follow this strictly:
+1. SENSOR IS THE HIGHEST AUTHORITY. The DHT22 measures actual humidity in the air around the garment. High humidity (above trained WET threshold) means moisture is present — trust this above all else. Low humidity confirms drying. Do NOT override the sensor vote with visual appearance alone.
+2. IMAGE kNN is secondary evidence. Use it to confirm or provide additional context, especially when sensor is borderline.
+3. VISUAL ANALYSIS is supporting evidence only. Lighting, fabric color, and shadows can mislead. Never contradict a confident sensor reading based on visuals.
+
+RULES:
+- If sensor says WET with >70% confidence → your verdict MUST be WET unless there is overwhelming contradicting evidence from BOTH image and kNN
+- If sensor says DRY with >70% confidence → your verdict MUST be DRY
+- If sensor is unavailable or uncertain → use image + kNN to decide
+- Your confidence should be HIGH when sensor and image agree, MODERATE when they disagree
+
+${sensorBlock}
+
+${knnBlock}
+
+Now look at the garment image. Identify the dominant color AND the garment type.
+For garment type, classify ONLY as one of: "polo" or "tshirt"
+- polo = has collar, buttons, formal style
+- tshirt = crew neck, no collar, casual
+Respond ONLY with raw JSON (no markdown, no explanation outside JSON):
+{"status":"WET","confidence":0.92,"garment_in_frame":true,"sensor_analysis":"1 sentence about sensor vs baseline","image_analysis":"1 sentence about what you see","knn_agreement":true,"color":"blue","color_hex":"#4A90D9","garment_type":"tshirt","guidance":"1 short tip"}\`
+
+IMPORTANT: Set \"garment_in_frame\" to false if you see an EMPTY slot (no clothing visible — just rack, background, or nothing). Set to true if any garment is visible.`;
+
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':key,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:400,
+        messages:[{
+          role:'user',
+          content:[
+            {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+            {type:'text',text:prompt}
+          ]
+        }]
+      })
+    });
+
+    const data=await res.json();
+    if(data.error)throw new Error(data.error.message);
+    const r=parseAI(data.content[0].text);
+
+    // Build a detailed tip from Claude's reasoning
+    const tip=[
+      r.sensor_analysis?'Sensor: '+r.sensor_analysis:'',
+      r.image_analysis?'Visual: '+r.image_analysis:'',
+      r.knn_agreement!==undefined?'kNN '+(r.knn_agreement?'agrees':'disagrees'):'',
+      r.guidance||''
+    ].filter(Boolean).join(' | ');
+
+    return{
+      label:(r.status||'UNKNOWN').toUpperCase(),
+      conf:parseFloat(r.confidence)||0,
+      tip:tip,
+      color:         r.color||'',
+      color_hex:     r.color_hex||'',
+      garment_type:  r.garment_type||'',
+      garment_in_frame: r.garment_in_frame !== false, // default true if missing
+      reasoning:{
+        sensor_analysis: r.sensor_analysis||'',
+        image_analysis:  r.image_analysis||'',
+        knn_agreement:   r.knn_agreement,
+        guidance:        r.guidance||''
+      }
+    };
+  }catch(e){return{label:null,conf:0,tip:'Error: '+e.message};}
+}
+function weightedDecision(votes){
+  let wet=0,dry=0,totalW=0;
+  for(const v of votes){
+    if(!v.label||v.label==='NO DATA'||v.label==='NO KEY'||v.label==='NO SENSOR'||!v.label)continue;
+    totalW+=v.weight;
+    if(v.label==='WET')wet+=v.weight*v.conf;
+    else if(v.label==='DRY')dry+=v.weight*v.conf;
+  }
+  if(!totalW)return{label:'UNCERTAIN',conf:0,wet:0,dry:0};
+  return{label:wet>dry?'WET':dry>wet?'DRY':'UNCERTAIN',conf:Math.max(wet,dry)/(wet+dry||1),wet,dry};
+}
+
+// ── TRAIN: Validate ────────────────────────────────────────
+window.runValidation=async()=>{
+  const btn=document.getElementById('btnAnalyze');btn.disabled=true;
+  document.getElementById('trainOverlay').classList.add('show');
+  setTrainStatus('ANALYZING',null);sendBuzzer('BUZ_ANALYZING');
+  ['vSensor','vImage','vAI'].forEach(id=>{const e=document.getElementById(id);e.textContent='...';e.className='vote-result v-wait';});
+  try{
+    const ws=(parseInt(document.getElementById('wgtSensor').value)||0)/100;
+    const wi=(parseInt(document.getElementById('wgtImage').value)||0)/100;
+    const wc=(parseInt(document.getElementById('wgtClaude').value)||0)/100;
+    const sv=sensorVote(latestHum,document.getElementById('useLearnedRanges').checked,'wetThr','dryThr');
+    setVote('vSensor',sv.label);addLog('Sensor: '+(sv.label||'no sensor'),'i');
+    const kv=knnVote(canvasTrain,c2dTrain,'videoTrain',flippedTrain);
+    setVote('vImage',kv.label);addLog('kNN: '+kv.label+' ('+Math.round(kv.conf*100)+'%)','i');
+    // Claude receives sensor + kNN results as evidence to judge
+    const av=await claudeVote(canvasTrain,c2dTrain,'videoTrain',flippedTrain,sv,kv);
+    setVote('vAI',av.label||'NO KEY');addLog('Claude: '+(av.label||'no key'),'i');
+    if(av.color) updateColorDisplay(av.color, av.color_hex, av.garment_type, 'train');
+    if(av.tip)document.getElementById('tipText').textContent=av.tip;
+    if(av.reasoning){
+      addLog('Sensor analysis: '+av.reasoning.sensor_analysis,'i');
+      addLog('Visual analysis: '+av.reasoning.image_analysis,'i');
+      addLog('kNN agreement: '+(av.reasoning.knn_agreement?'YES':'NO'),'i');
+    }
+    const d=weightedDecision([{label:sv.label,conf:sv.conf,weight:ws},{label:kv.label,conf:kv.conf,weight:wi},{label:av.label||'',conf:av.conf,weight:wc}]);
+    const vb=document.getElementById('verdictBox');
+    vb.textContent=d.label==='WET'?'💧 WET':d.label==='DRY'?'☀️ DRY':'❓ UNCERTAIN';
+    vb.className='verdict-box '+(d.label==='WET'?'verdict-wet':d.label==='DRY'?'verdict-dry':'verdict-wait');
+    document.getElementById('verdictSub').textContent='WET:'+d.wet.toFixed(2)+' DRY:'+d.dry.toFixed(2)+' conf:'+Math.round(d.conf*100)+'%';
+    setTrainStatus(d.label,d.conf);addLog('RESULT: '+d.label,d.label==='WET'?'lw':'ld');sendBuzzer(d.label==='WET'?'BUZ_WET':d.label==='DRY'?'BUZ_DRY':'BUZ_UNCERTAIN');addLog('SMS check: result='+d.label,'i');if(d.label==='DRY'){addLog('✅ DRY detected — sending SMS','s');sendDryAlert();}
+    saveValidationResult(d.label,d.conf,sv,kv,av);
+  }catch(e){setTrainStatus('ERROR',null);addLog('Error: '+e.message,'e');}
+  finally{btn.disabled=false;document.getElementById('trainOverlay').classList.remove('show');}
+};
+
+// ── TEST: Analyze ──────────────────────────────────────────
+window.runTest=async()=>{
+  const btn=document.getElementById('btnTestAnalyze');btn.disabled=true;
+  document.getElementById('testOverlay').classList.add('show');
+  document.getElementById('testOverlayMsg').textContent='Analyzing...';
+  setTestStatus('ANALYZING',null);
+  const useSensor=document.getElementById('toggleSensor').checked;
+  const useImage=document.getElementById('toggleImage').checked;
+  const useClaude=document.getElementById('toggleClaude').checked;
+  const ws=(parseInt(document.getElementById('testWgtSensor').value)||0)/100;
+  const wi=(parseInt(document.getElementById('testWgtImage').value)||0)/100;
+  const wc=(parseInt(document.getElementById('testWgtClaude').value)||0)/100;
+  const useLearned=document.getElementById('testUseLearned').checked;
+  try{
+    const votes=[];
+    let svForClaude2=null,kvForClaude2=null;
+    if(useSensor){
+      const sv=sensorVote(latestHum,useLearned,'testWetThr','testDryThr');
+      setBd('bdSensor',sv.label,sv.conf);votes.push({label:sv.label,conf:sv.conf,weight:ws,_src:'sensor'});
+      svForClaude2=sv;
+      addTestLog('Sensor: '+(sv.label||'no sensor')+(latestHum?' ('+latestHum.toFixed(1)+'%)':''),'i');
+    }else{setBd('bdSensor','SKIP',0);addTestLog('Sensor: SKIPPED','i');}
+    if(useImage){
+      const kv=knnVote(canvasTest,c2dTest,'videoTest',flippedTest);
+      setBd('bdImage',kv.label,kv.conf);votes.push({label:kv.label,conf:kv.conf,weight:wi,_src:'knn'});
+      kvForClaude2=kv;
+      addTestLog('kNN: '+kv.label+' ('+Math.round(kv.conf*100)+'%)','i');
+    }else{setBd('bdImage','SKIP',0);addTestLog('kNN: SKIPPED','i');}
+    if(useClaude){
+      addTestLog('Asking Claude judge (sensor+kNN+image)... (tokens)','i');
+      // Pass sensor and kNN results so Claude can judge all evidence
+      const av=await claudeVote(canvasTest,c2dTest,'videoTest',flippedTest,svForClaude2,kvForClaude2);
+      setBd('bdClaude',av.label||'NO KEY',av.conf);votes.push({label:av.label||'',conf:av.conf,weight:wc});
+      addTestLog('Claude verdict: '+(av.label||'no key')+' ('+Math.round(av.conf*100)+'%)','i');
+      if(av.color) updateColorDisplay(av.color, av.color_hex, av.garment_type, 'test');
+      if(av.reasoning){
+        if(av.reasoning.sensor_analysis) addTestLog('🌡️ '+av.reasoning.sensor_analysis,'i');
+        if(av.reasoning.image_analysis)  addTestLog('🖼️ '+av.reasoning.image_analysis,'i');
+        if(av.reasoning.knn_agreement!==undefined) addTestLog('kNN '+(av.reasoning.knn_agreement?'✅ agrees':'⚠️ disagrees'),'i');
+      }
+      if(av.tip)document.getElementById('testTipText').textContent=av.tip;
+    }else{setBd('bdClaude','SKIP',0);addTestLog('Claude AI: SKIPPED (tokens saved)','i');}
+    const d=weightedDecision(votes);
+    const rb=document.getElementById('testResultBox');
+    document.getElementById('testResultLabel').textContent=d.label==='WET'?'💧 WET':d.label==='DRY'?'☀️ DRY':'❓ UNCERTAIN';
+    rb.className='test-result-big '+(d.label==='WET'?'result-wet':d.label==='DRY'?'result-dry':'result-uncertain');
+    document.getElementById('testResultConf').textContent='Confidence: '+Math.round(d.conf*100)+'%';
+    const active=[useSensor?'Sensor':'',useImage?'kNN':'',useClaude?'Claude':''].filter(Boolean).join('+');
+    document.getElementById('testResultScore').textContent='Active: '+active+' · WET='+d.wet.toFixed(3)+' DRY='+d.dry.toFixed(3);
+    setTestStatus(d.label,d.conf);addTestLog('RESULT: '+d.label+' ('+Math.round(d.conf*100)+'%) ['+active+']',d.label==='WET'?'lw':'ld');sendBuzzer(d.label==='WET'?'BUZ_WET':d.label==='DRY'?'BUZ_DRY':'BUZ_UNCERTAIN');addTestLog('SMS check: result='+d.label,'i');if(d.label==='DRY'){addTestLog('✅ DRY detected — sending SMS','s');sendDryAlert();}
+    saveValidationResult(d.label,d.conf,svForClaude2,kvForClaude2,null);
+  }catch(e){setTestStatus('ERROR',null);addTestLog('Error: '+e.message,'e');}
+  finally{btn.disabled=false;document.getElementById('testOverlay').classList.remove('show');}
+};
+
+window.toggleAuto=()=>{
+  const on=document.getElementById('autoDetect').checked;
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
+  if(on){const sec=parseInt(document.getElementById('autoInterval').value)||3;autoTimer=setInterval(runTest,sec*1000);addTestLog('Auto ON every '+sec+'s','i');}
+  else addTestLog('Auto OFF','i');
+};
+
+// ── Firebase load ───────────────────────────────────────────
+async function loadTrainingData(){
+  // Try local backup JSON first (fast, no Firebase Storage needed)
+  const loaded = await loadFromLocalBackup();
+  if(loaded) return;
+  // Fallback to Firestore
+  addLog('Loading from Firebase Firestore...','i');
+  try{
+    const q=query(collection(db,'training_images'),orderBy('timestamp','desc'));
+    const snap=await getDocs(q);
+    trainingData=snap.docs.map(d=>({id:d.id,_feat:null,...d.data()}));
+    updateStats();renderGallery();updateLearnedRanges();updateKnnStatus();
+    addLog('Loaded '+trainingData.length+' images from Firestore','i');
+    if(trainingData.length>0){
+      addLog('Auto-loading from feature cache...','i');
+      await loadKnnFeatures();
+    }
+  }catch(e){addLog('Firestore error: '+e.message,'e');}
+}
+
+async function loadFromLocalBackup(){
+  try{
+    // Try to load from local backup JSON served by web server
+    // File: /BACKUP/backup_20260407_033654/firestore_20260407_033654.json
+    addLog('Trying local backup...','i');
+    // Find the backup JSON — try known path
+    const paths=[
+      '/BACKUP/backup_20260407_033654/firestore_20260407_033654.json',
+      '/BACKUP/firestore.json',
+      '/BACKUP/data.json'
+    ];
+    let data=null;
+    for(const path of paths){
+      try{
+        const res=await fetch(path);
+        if(res.ok){ data=await res.json(); break; }
+      }catch{}
+    }
+    if(!data||!data.records||!data.records.length){
+      addLog('Local backup not found — using Firestore','i');
+      return false;
+    }
+    // Convert backup records to trainingData format
+    // Replace Firebase Storage URLs with local paths
+    trainingData = data.records.map(r=>{
+      // Extract filename from path: "training/WET_xxx.jpg" → "WET_xxx.jpg"
+      const filename = r.filename ? r.filename.split('/').pop() : '';
+      const localUrl = filename
+        ? '/BACKUP/backup_20260407_033654/images/'+filename
+        : r.url; // fallback to firebase url
+      return {
+        id:          r.id||filename,
+        label:       r.label,
+        url:         localUrl,
+        filename:    r.filename,
+        sensor:      r.sensor||null,
+        timestamp:   r.timestamp||'',
+        groundTruth: r.groundTruth||true,
+        decidedBy:   r.decidedBy||'human',
+        _feat:       null
+      };
+    });
+    updateStats();renderGallery();updateLearnedRanges();updateKnnStatus();
+    addLog('✅ Loaded '+trainingData.length+' images from LOCAL backup ('+data.records.filter(r=>r.label==='WET').length+'W/'+data.records.filter(r=>r.label==='DRY').length+'D)','s');
+    addLog('Auto-loading kNN features from cache...','i');
+    await loadKnnFeatures();
+    return true;
+  }catch(e){
+    addLog('Local backup error: '+e.message+' — falling back to Firestore','e');
+    return false;
+  }
+}
+function updateLearnedRanges(){
+  const wetS=trainingData.filter(d=>d.label==='WET'&&d.sensor),dryS=trainingData.filter(d=>d.label==='DRY'&&d.sensor);
+  const show=wetS.length||dryS.length;
+  ['learnedRanges','testLearnedRanges'].forEach(id=>document.getElementById(id).style.display=show?'block':'none');
+  if(!show)return;
+  const rng=(arr,k)=>{if(!arr.length)return'—';const v=arr.map(d=>d.sensor[k]);return Math.min(...v).toFixed(1)+' – '+Math.max(...v).toFixed(1);};
+  [['wetHumRange','testWetHumRange',wetS,'hum','%'],['dryHumRange','testDryHumRange',dryS,'hum','%'],['wetTempRange','testWetTempRange',wetS,'temp','°C'],['dryTempRange','testDryTempRange',dryS,'temp','°C']].forEach(([id1,id2,arr,k,u])=>{const v=rng(arr,k)+u;document.getElementById(id1).textContent=v;document.getElementById(id2).textContent=v;});
+}
+
+// ── UI helpers ──────────────────────────────────────────────
+function updateColorDisplay(color, hex, garmentType, tab){
+  const ids = tab==='train'
+    ? {swatch:'trainColorSwatch', name:'trainColorName', type:'trainGarmentType', display:'trainColorDisplay'}
+    : {swatch:'testColorSwatch',  name:'testColorName',  type:'testGarmentType',  display:'testColorDisplay'};
+  const sw   = document.getElementById(ids.swatch);
+  const nm   = document.getElementById(ids.name);
+  const tp   = document.getElementById(ids.type);
+  const disp = document.getElementById(ids.display);
+  if(!sw||!nm) return;
+  sw.style.background = hex||color||'#888';
+  nm.textContent = color ? color.charAt(0).toUpperCase()+color.slice(1) : '—';
+  if(tp && garmentType){
+    const isPoloShirt = garmentType.toLowerCase()==='polo';
+    tp.textContent = isPoloShirt ? '👔 Polo' : '👕 T-Shirt';
+    tp.className   = 'garment-type-badge '+(isPoloShirt?'gtype-polo':'gtype-tshirt');
+    tp.style.display = 'inline-block';
+  }
+  if(disp) disp.style.display='flex';
+}
+
+function setTrainStatus(s,c){
+  const b=document.getElementById('trainStatusBadge'),cb=document.getElementById('trainConfBadge');
+  b.textContent=s;b.className='status-badge badge-'+(s==='WET'?'wet':s==='DRY'?'dry':s==='ANALYZING'?'analyzing':s==='ERROR'?'error':'waiting');
+  cb.textContent=c!==null?Math.round(c*100)+'%':'--';
+}
+function setTestStatus(s,c){
+  const b=document.getElementById('testStatusBadge'),cb=document.getElementById('testConfBadge');
+  b.textContent=s;b.className='status-badge badge-'+(s==='WET'?'wet':s==='DRY'?'dry':s==='ANALYZING'?'analyzing':s==='ERROR'?'error':'waiting');
+  cb.textContent=c!==null?Math.round(c*100)+'%':'--';
+}
+function setVote(id,lbl){const el=document.getElementById(id);el.textContent=lbl||'—';el.className='vote-result '+(lbl==='WET'?'v-wet':lbl==='DRY'?'v-dry':'v-wait');}
+function setBd(id,lbl,conf){
+  const el=document.getElementById(id);el.textContent=lbl||'—';
+  el.className='bd-result '+(lbl==='WET'?'v-wet':lbl==='DRY'?'v-dry':lbl==='SKIP'?'v-skip':'v-wait');
+  const ce=document.getElementById(id+'Conf');
+  if(ce)ce.textContent=(lbl&&lbl!=='NO DATA'&&lbl!=='NO KEY'&&lbl!=='SKIP'&&conf!==undefined)?Math.round(conf*100)+'%':'--';
+}
+function updateStats(){
+  const w=trainingData.filter(d=>d.label==='WET').length,d=trainingData.filter(d=>d.label==='DRY').length;
+  document.getElementById('statTotal').textContent=trainingData.length;
+  document.getElementById('statWet').textContent=w;
+  document.getElementById('statDry').textContent=d;
+  document.getElementById('galleryCount').textContent=trainingData.length;
+}
+function renderGallery(){
+  const g=document.getElementById('gallery');
+  if(!trainingData.length){g.innerHTML='<div class="empty-g">No images yet!</div>';return;}
+  g.innerHTML=trainingData.map(d=>{
+    const ht=d.sensor?'<div class="g-hum">'+d.sensor.hum.toFixed(0)+'%</div>':'';
+    const fd=d._feat!==undefined?(d._feat?'<div class="g-feat-ok"></div>':'<div class="g-feat-no"></div>'):'';
+    return '<div class="g-item"><img src="'+d.url+'" alt="'+d.label+'" loading="lazy"/>'+ht+fd+'<div class="g-label '+(d.label==='WET'?'gl-wet':'gl-dry')+'">'+d.label+'</div><button class="g-del" onclick="deleteTraining(\''+d.id+'\',\''+d.filename+'\')">✕</button></div>';
+  }).join('');
+}
+function addLog(msg,type){
+  const log=document.getElementById('log');
+  if(!log){console.log('[LOG]',msg);return;}
+  const time=new Date().toTimeString().slice(0,8);
+  const cls={lw:'lw',ld:'ld',i:'li',s:'ls',e:'le'}[type]||'li';
+  const el=document.createElement('div');el.className='log-entry';
+  el.innerHTML='<span class="lt">'+time+'</span><span class="'+cls+'">'+msg+'</span>';
+  log.prepend(el);while(log.children.length>80)log.removeChild(log.lastChild);
+}
+function addTestLog(msg,type){
+  const log=document.getElementById('testLog');
+  if(!log){console.log('[TESTLOG]',msg);return;}
+  const time=new Date().toTimeString().slice(0,8);
+  const cls={lw:'lw',ld:'ld',i:'li',s:'ls',e:'le'}[type]||'li';
+  const el=document.createElement('div');el.className='log-entry';
+  el.innerHTML='<span class="lt">'+time+'</span><span class="'+cls+'">'+msg+'</span>';
+  log.prepend(el);while(log.children.length>80)log.removeChild(log.lastChild);
+}
+function showToast(msg){
+  const t=document.getElementById('toast');
+  if(!t){console.log('[TOAST]',msg);return;}
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3200);
+}
+
+document.addEventListener('keydown',e=>{
+  if(document.activeElement.tagName==='INPUT')return;
+  const tab=document.querySelector('.tab-content.active').id;
+  if(e.key==='t'||e.key==='T'){tab==='tab-train'?runValidation():runTest();}
+  if(e.key==='w'||e.key==='W'){if(tab==='tab-train')saveGroundTruth('WET');}
+  if(e.key==='d'||e.key==='D'){if(tab==='tab-train')saveGroundTruth('DRY');}
+  if(e.key==='l'||e.key==='L')loadKnnFeatures();
+});
+
+// ── Init ────────────────────────────────────────────────────
+// ── Save validation result to Firebase for dashboard ─────
+async function saveValidationResult(label, conf, sv, kv, av){
+  if(!label || label==='UNCERTAIN') return;
+  const record = {
+    slot:      1,
+    label:     label,
+    conf:      conf||0,
+    timestamp: new Date().toISOString(),
+    sensor:    latestHum!==null ? {temp:latestTemp, hum:latestHum} : null,
+    color:        av?av.color||'':'',
+    color_hex:    av?av.color_hex||'':'',
+    garment_type: av?av.garment_type||'':'',
+    votes:{
+      sensor: sv?{label:sv.label||null,conf:sv.conf||0}:null,
+      knn:    kv?{label:kv.label||null,conf:kv.conf||0}:null,
+      claude: av?{label:av.label||null,conf:av.conf||0}:null
+    }
+  };
+  // ── Send via WebSocket (zero Firebase reads) ────────
+  wsSend('result', record);
+  addLog('📡 Result broadcast via WebSocket','i');
+
+  // ── ALSO save to Firestore for persistence ──────────
+  // Only saves result doc — NOT sensor readings (no spam)
+  try{
+    await setDoc(doc(db,'validation_results','slot_1_latest'), record);
+    await addDoc(collection(db,'validation_results'), record);
+  }catch(e){
+    addLog('Firestore save error: '+e.message,'e');
+  }
+}
+
+function initApp(){
+  // ── Assign DOM refs NOW that DOM is ready ──────────────
+  canvasTrain = document.getElementById('canvas');
+  canvasTest  = document.getElementById('canvasTest');
+  c2dTrain    = canvasTrain.getContext('2d');
+  c2dTest     = canvasTest.getContext('2d');
+
+  getApiKey();
+  connectWS(); // connect to local WebSocket relay
+  // Render empty phone list until settings load
+  if(typeof applySmsSettings==='function') applySmsSettings({});
+  renderPhones();
+  // Start camera — needs to be called after DOM ready
+  startCamera().catch(e=>{
+    addLog('Camera: '+e.message+' — click camera area to retry','e');
+    // Show click-to-start overlay if autoplay blocked
+    const cb=document.querySelector('#tab-train .camera-box');
+    if(cb){
+      cb.style.cursor='pointer';
+      cb.title='Click to start camera';
+      cb.addEventListener('click',()=>startCamera(),{once:true});
+    }
+  });
+  // Load data then settings
+  loadTrainingData().then(()=>loadSettings()).catch(e=>{
+    addLog('Init error: '+e.message,'e');
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  SIMULATION — 5 Slot System with DHT per slot
+// ════════════════════════════════════════════════════════
+let simMoving    = false;
+let simEmergency = false;
+let simLimitHit  = false;
+let simSlotNow   = 0;
+const simCanvas  = document.createElement('canvas');
+const simCtx2    = simCanvas.getContext('2d');
+
+// Per-slot DHT sensor readings from Arduino
+const slotSensor = {1:null,2:null,3:null,4:null,5:null};
+
+// ── Parse multi-slot DHT data from Arduino ────────────────
+// Arduino sends: "DHT:1,28.5C,72.3%"
+function parseSlotSensor(line){
+  const m = line.match(/^DHT:(\d),([\d.]+)C,([\d.]+)%/);
+  if(!m)return false;
+  const slot=parseInt(m[1]),temp=parseFloat(m[2]),hum=parseFloat(m[3]);
+  slotSensor[slot]={temp,hum};
+  // Update slot card display
+  const humEl =document.getElementById('scmHum'+slot);
+  const tempEl=document.getElementById('scmTemp'+slot);
+  if(humEl)  humEl.textContent =hum.toFixed(1)+'%';
+  if(tempEl) tempEl.textContent=temp.toFixed(1)+'°C';
+  // If this is the current slot, update main sensor display too
+  if(slot===simSlotNow){
+    document.getElementById('testTempVal').textContent=temp.toFixed(1);
+    document.getElementById('testHumVal').textContent =hum.toFixed(1);
+  }
+  return true;
+}
+
+// ── Parse simulation serial lines ─────────────────────────
+function parseSimSerial(line){
+  if(parseSlotSensor(line))return;
+  if(line==='LIMIT_HIT'){
+    simLimitHit=true;
+    const lb=document.getElementById('simLimitBadge');
+    if(lb){lb.textContent='HOME ✅';lb.style.background='rgba(34,197,94,.4)';}
+    addSimLog('🏠 Limit switch hit — HOME','stop');
+    return;
+  }
+  if(line==='NUDGING'){
+    addSimLog('↺ Nudging CCW to clear switch...','move');
+    setSimState('moving','↺ Nudging...');
+    return;
+  }
+  if(line==='NUDGE_DONE'){
+    addSimLog('↻ Nudge done — now going CW to home','move');
+    setSimState('moving','↻ GOING HOME...');
+    return;
+  }
+  if(line==='GOING_HOME'){
+    addSimLog('↻ Heading home CW...','move');
+    return;
+  }
+  if(line.startsWith('MOTOR_OK')||line.startsWith('SLOT_SET')||
+     line.startsWith('RELAY_OK')||line==='READ_ALL_BUSY') return;
+  if(line.startsWith('AT_SLOT:')){
+    const slot=parseInt(line.split(':')[1]);
+    simSlotNow=slot;
+    addSimLog('📍 At Slot '+slot,'info');
+    highlightSlot(slot);
+  }
+}
+
+function addSimLog(msg,type='info'){
+  const log=document.getElementById('simLog');if(!log)return;
+  const t=new Date().toTimeString().slice(0,8);
+  const cls={move:'sl-move',scan:'sl-scan',wet:'sl-wet',dry:'sl-dry',stop:'sl-stop',info:'sl-info'}[type]||'sl-info';
+  const el=document.createElement('div');el.className='sim-log-entry';
+  el.innerHTML=`<span class="sl-t">${t}</span><span class="${cls}">${msg}</span>`;
+  log.prepend(el);while(log.children.length>80)log.removeChild(log.lastChild);
+}
+
+function setSimState(state,label){
+  const b=document.getElementById('simStateBadge');
+  if(b){b.className='sim-state-badge sim-'+state;b.textContent=label;}
+}
+
+function highlightSlot(slot){
+  for(let i=1;i<=5;i++){
+    const card=document.getElementById('slotCard'+i);
+    if(!card)continue;
+    if(i===slot){
+      card.classList.add('active-slot');
+      document.getElementById('simSlotBadge').textContent='SLOT '+slot;
+    }else{
+      card.classList.remove('active-slot');
+    }
+  }
+}
+
+function updateSlotResult(slot,label,conf,color,colorHex,garmentType){
+  const card=document.getElementById('slotCard'+slot);
+  const res =document.getElementById('scmResult'+slot);
+  const lbl =document.getElementById('scmLabel'+slot);
+  const col =document.getElementById('scmColor'+slot);
+  const typ =document.getElementById('scmType'+slot);
+  if(!card||!res)return;
+  card.className='slot-card-mini '+(label==='WET'?'wet-slot':label==='DRY'?'dry-slot':'');
+  res.textContent =label==='WET'?'💧WET':label==='DRY'?'☀️DRY':'—';
+  res.style.color  =label==='WET'?'#3b82f6':label==='DRY'?'#22c55e':'#475569';
+  lbl.textContent  =Math.round((conf||0)*100)+'%';
+  if(col&&colorHex) col.style.background=colorHex;
+  if(typ&&garmentType) typ.textContent=garmentType==='polo'?'👔':'👕';
+}
+
+// ── Serial write helper ───────────────────────────────────
+async function simSerial(cmd){
+  if(!serialPort||!serialPort.writable){addSimLog('⚠️ Arduino not connected','stop');return false;}
+  try{
+    if(!serialWriter){
+      const enc=new TextEncoderStream();enc.readable.pipeTo(serialPort.writable);
+      serialWriter=enc.writable.getWriter();
+    }
+    await serialWriter.write(cmd+'\n');
+    return true;
+  }catch(e){addSimLog('Serial error: '+e.message,'stop');return false;}
+}
+
+// ── Wait with emergency check ─────────────────────────────
+async function simWait(ms, checkLimit=false){
+  // checkLimit=true only for GO_HOME (CW direction)
+  // For slot moves (CCW), Arduino ignores limit — JS does too
+  const step=50,steps=Math.ceil(ms/step);
+  for(let i=0;i<steps;i++){
+    if(simEmergency)return false;
+    if(checkLimit&&simLimitHit)return false;
+    await new Promise(r=>setTimeout(r,step));
+  }
+  return !simEmergency;
+}
+
+// ── HOME — run CW until limit switch ─────────────────────
+window.simGoHome=async()=>{
+  if(!serialPort||!serialPort.writable){addSimLog('⚠️ Arduino not connected','stop');return;}
+  simEmergency=false;
+  simLimitHit=false;
+  serialBuf='';   // flush stale serial data
+  simMoving=true;
+
+  const spd         = parseInt(document.getElementById('simHomeSpeed').value)||80;
+  const homeTimeout = parseInt(document.getElementById('simHomeTimeout').value)||30;
+
+  setSimState('moving','↻ GOING HOME...');
+  addSimLog('Sending GO_HOME — Arduino handles nudge + CW homing','move');
+
+  // GO_HOME: Arduino will nudge CCW if already at limit, then go CW
+  // No need to send MOTOR_CW separately — Arduino handles it all
+  await simSerial('GO_HOME');
+
+  // Wait for LIMIT_HIT (Arduino sends it after CW reaches home)
+  // Add extra time for nudge (NUDGE_MS=500ms) + movement
+  const deadline = Date.now() + (homeTimeout + 2)*1000;
+  while(Date.now() < deadline){
+    if(simEmergency) break;
+    if(simLimitHit)  break;
+    await new Promise(r=>setTimeout(r,50));
+  }
+
+  await simSerial('MOTOR_STOP');
+  simMoving=false;
+  simLimitHit=false;
+
+  if(!simEmergency){
+    simSlotNow=0;
+    setSimState('idle','🏠 HOME');
+    addSimLog('🏠 HOME — ready to calibrate','info');
+    showToast('🏠 Home! Use S1–S5 to calibrate delays');
+    restoreSimBtns();
+  }
+};
+
+// ── GO TO specific slot (timed) ───────────────────────────
+// ── Cumulative ms from home to a slot ────────────────────
+function getCumulativeDelay(slot){
+  let total=0;
+  for(let i=1;i<=slot;i++) total+=parseInt(document.getElementById('delay'+i).value)||2000;
+  return total;
+}
+
+// ── Helper: go home then CCW to target ───────────────────
+async function goHomeFirst(speed){
+  const homeSpd = parseInt(document.getElementById('simHomeSpeed').value)||speed||80;
+  addSimLog('↻ Homing (speed '+homeSpd+')...','move');
+  setSimState('moving','↻ Homing...');
+  simLimitHit=false;  // clear any stale flag
+  serialBuf='';       // flush serial buffer before homing
+  simMoving=true;
+  // Send speed then GO_HOME (Arduino handles nudge + CW + stops at limit)
+  await simSerial('MOTOR_CW:'+homeSpd);
+  const timeout = (parseInt(document.getElementById('simHomeTimeout').value)||30)*1000;
+  const deadline = Date.now() + timeout + 2000; // +2s for nudge time
+  while(Date.now() < deadline){
+    if(simEmergency) break;
+    if(simLimitHit)  break;
+    await new Promise(r=>setTimeout(r,50));
+  }
+  // ALWAYS stop motor — whether limit hit, timeout, or emergency
+  await simSerial('MOTOR_STOP');
+  simMoving=false;
+  simLimitHit=false;
+  simSlotNow=0;
+  if(!simEmergency) addSimLog('🏠 Home reached','info');
+}
+
+window.simGoToSlot=async(targetSlot)=>{
+  if(simMoving){addSimLog('⚠️ Already moving','stop');return;}
+  if(simSlotNow===null){addSimLog('⚠️ Go HOME first to calibrate','stop');return;}
+  if(targetSlot===simSlotNow){addSimLog('Already at Slot '+targetSlot,'info');return;}
+
+  const speed    = parseInt(document.getElementById('simSpeed').value)||50;
+  const targetMs = getCumulativeDelay(targetSlot);
+  const currentMs= simSlotNow===0 ? 0 : getCumulativeDelay(simSlotNow);
+  const delta    = targetMs - currentMs;
+
+  let moveDur, dir;
+
+  if(delta > 0){
+    // Target is further from home — go CCW
+    dir     = 'CCW';
+    moveDur = delta;
+    addSimLog('→ S'+simSlotNow+'→S'+targetSlot+' CCW +'+moveDur+'ms','move');
+  } else {
+    // Target is closer to home — go home first then CCW to target
+    await goHomeFirst(speed);
+    if(simEmergency){simMoving=false;return;}
+    dir     = 'CCW';
+    moveDur = targetMs;
+    addSimLog('→ From home CCW to S'+targetSlot+' '+moveDur+'ms','move');
+  }
+
+  setSimState('moving','⚙️ → Slot '+targetSlot+' ('+moveDur+'ms '+dir+')');
+  await simSerial('MOTOR_'+dir+':'+speed);
+  simMoving=true;
+
+  // ── Overshoot detection: if motor runs 300ms past target → emergency ──
+  const OVERSHOOT_MS = 300;
+  const overDeadline = Date.now() + moveDur + OVERSHOOT_MS;
+  const startTime    = Date.now();
+  let   overshot     = false;
+
+  while(Date.now() - startTime < moveDur){
+    if(simEmergency) break;
+    await new Promise(r=>setTimeout(r,50));
+  }
+
+  // Target time reached — stop motor
+  await simSerial('MOTOR_STOP');
+
+  // Check if we overshot (took way too long — shouldn't happen but guard anyway)
+  if(Date.now() > overDeadline){ overshot = true; }
+
+  simMoving=false;
+
+  if(overshot){
+    addSimLog('⚠️ OVERSHOOT detected! Homing and retrying...','stop');
+    setSimState('stopped','⚠️ OVERSHOOT');
+    sendBuzzer('BUZ_ERROR');
+    showToast('⚠️ Overshoot! Going home...');
+    await new Promise(r=>setTimeout(r,500));
+    // Go home then retry
+    await goHomeFirst(speed);
+    if(!simEmergency){
+      addSimLog('↺ Retrying Slot '+targetSlot+' after overshoot','move');
+      await new Promise(r=>setTimeout(r,300));
+      // Retry once from home
+      const retryMs = getCumulativeDelay(targetSlot);
+      setSimState('moving','↺ RETRY → Slot '+targetSlot);
+      await simSerial('MOTOR_'+dir+':'+speed);
+      simMoving=true;
+      await simWait(retryMs);
+      await simSerial('MOTOR_STOP');
+      simMoving=false;
+    }
+  }
+
+  if(!simEmergency){
+    simSlotNow=targetSlot;
+    await simSerial('SET_SLOT:'+targetSlot);
+    highlightSlot(targetSlot);
+    setSimState('idle','📍 Slot '+targetSlot);
+    addSimLog('📍 Slot '+targetSlot+' arrived — press SCAN NOW','info');
+    sendBuzzer('BUZ_ANALYZING');
+    showToast('📍 Slot '+targetSlot+' — press SCAN NOW');
+  }
+};
+
+// ── RUN ALL — go through all 5 slots ─────────────────────
+window.simRunAll=async()=>{
+  if(!serialPort||!serialPort.writable){showToast('Connect Arduino first!');return;}
+
+  // ── FULL STATE RESET — fixes stale state on repeat runs ──
+  simEmergency = false;
+  simLimitHit  = false;
+  simMoving    = false;
+  simSlotNow   = 0;
+  serialBuf    = '';
+  for(let i=1;i<=5;i++) slotSensor[i]=null;
+
+  // Reset all slot cards to blank
+  for(let i=1;i<=5;i++){
+    const card=document.getElementById('slotCard'+i);
+    if(card) card.className='slot-card-mini';
+    const res=document.getElementById('scmResult'+i);
+    if(res){res.textContent='—';res.style.color='#475569';}
+    const lbl=document.getElementById('scmLabel'+i);
+    if(lbl) lbl.textContent='—';
+    const hum=document.getElementById('scmHum'+i);
+    if(hum) hum.textContent='—%';
+    const tmp=document.getElementById('scmTemp'+i);
+    if(tmp) tmp.textContent='—°C';
+    const col=document.getElementById('scmColor'+i);
+    if(col) col.style.background='#334155';
+    const typ=document.getElementById('scmType'+i);
+    if(typ) typ.textContent='';
+  }
+
+  const scanSpeed = parseInt(document.getElementById('simSpeed').value)||50;
+  const homeSpeed = parseInt(document.getElementById('simHomeSpeed').value)||80;
+  const dirEl     = document.querySelector('input[name="simDir"]:checked');
+  const dir       = dirEl?dirEl.value:'CCW';
+
+  ['btnSimRun','btnSimHome','btnSimScanNow'].forEach(id=>{ const b=document.getElementById(id); if(b)b.disabled=true; });
+  addSimLog('=== FULL RUN START ===','move');
+
+  // ── STEP 1: Always go home first — MANDATORY ──────────
+  addSimLog('Step 1: Going home (speed '+homeSpeed+')...','move');
+  await goHomeFirst(homeSpeed);
+  if(simEmergency){await simSerial('MOTOR_STOP');restoreSimBtns();return;}
+  addSimLog('✅ At home — slot timing starts now','info');
+  await simWait(200);
+
+  const slotResults = {};
+  const emptySlotsForRetry = []; // slots where no garment was detected
+
+  // ── STEP 2: Visit each slot using its OWN delay ───────
+  // RULE: delay1 = ms from HOME to S1
+  //       delay2 = ms from S1 to S2
+  //       delay3 = ms from S2 to S3 ... etc
+  // Motor STOPS after each delay — NO go-home between slots
+  for(let slot=1;slot<=5;slot++){
+    if(simEmergency)break;
+
+    const moveDur = parseInt(document.getElementById('delay'+slot).value)||2000;
+    addSimLog('→ S'+slot+' — '+moveDur+'ms @ spd '+scanSpeed,'move');
+    setSimState('moving','⚙️ S'+slot+' ('+moveDur+'ms)');
+
+    // Reset slot display before move
+    const prevRes=document.getElementById('scmResult'+slot);
+    if(prevRes){prevRes.textContent='—';prevRes.style.color='#475569';}
+
+    // ── EXACT same real-time loop as simGoToSlot (manual buttons) ──
+    await simSerial('MOTOR_'+dir+':'+scanSpeed);
+    simMoving=true;
+    const tStart = Date.now();
+    let stuck = false;
+    while(Date.now() - tStart < moveDur){
+      if(simEmergency) break;
+      // Stuck detection: limit switch triggered during CCW = something wrong
+      if(simLimitHit){
+        stuck = true;
+        addSimLog('⚠️ S'+slot+': Limit hit during CCW — motor stuck!','stop');
+        break;
+      }
+      await new Promise(r=>setTimeout(r,20));
+    }
+    await simSerial('MOTOR_STOP');
+    simMoving=false;
+    if(simEmergency)break;
+
+    // ── If stuck: go home and restart entire run ───────────
+    if(stuck){
+      addSimLog('🔄 Stuck detected — going home and restarting run...','stop');
+      sendBuzzer('BUZ_ERROR');
+      showToast('⚠️ Motor stuck! Restarting run...');
+      simLimitHit=false;
+      await goHomeFirst(homeSpeed);
+      if(!simEmergency){
+        addSimLog('🔄 Restarting RUN ALL from Slot 1...','move');
+        await simWait(500);
+        restoreSimBtns();
+        window.simRunAll(); // restart
+      }
+      return;
+    }
+
+    simSlotNow=slot;
+    await simSerial('SET_SLOT:'+slot);
+    highlightSlot(slot);
+    addSimLog('📍 S'+slot+' — reading sensor + scanning','scan');
+
+    // Read sensor
+    await simSerial('READ_SLOT:'+slot);
+    await simWait(600);
+
+    // Full scan
+    setSimState('scanning','🔍 Scanning S'+slot);
+    const scanRes = await runSimSlotScan(slot, true);
+    if(simEmergency)break;
+
+    const resEl = document.getElementById('scmResult'+slot);
+    slotResults[slot] = resEl ? resEl.textContent : '—';
+    // Track if garment was in frame — if not, flag for retry
+    if(!scanRes.garmentInFrame){
+      emptySlotsForRetry.push(slot);
+      markSlotEmpty(slot); // show EMPTY immediately, retry will update it
+      addSimLog('⚠️ S'+slot+' — no garment, flagged for retry','stop');
+    }
+    addSimLog('✅ S'+slot+': '+(slotResults[slot]||'?')+(scanRes.garmentInFrame?'':' [EMPTY — will retry]'),'info');
+  }
+
+  // ── STEP 3: ALWAYS go home after all slots ────────────
+  addSimLog('Step 3: Going home after run...','move');
+  await simSerial('MOTOR_STOP');
+  await simWait(100);
+  await goHomeFirst(homeSpeed);
+  addSimLog('🏠 Back home','info');
+
+  // NOW play buzzer summary — motor is stopped, Arduino won't be blocked
+  if(!simEmergency){
+    const allSlotsDry = Object.values(slotResults).every(r=>r.includes('DRY'));
+    sendBuzzer(allSlotsDry ? 'BUZ_DRY' : 'BUZ_WET');
+  }
+
+  // ── Retry ONCE for slots with no garment detected ───────
+  // Only one retry pass — if still empty after retry, mark as EMPTY
+  if(!simEmergency && emptySlotsForRetry.length > 0){
+    addSimLog('🔄 One retry pass for '+emptySlotsForRetry.length+' slot(s): S'+emptySlotsForRetry.join(', S'),'move');
+    showToast('🔄 Retrying empty slots once: S'+emptySlotsForRetry.join(', S'));
+    await simWait(500);
+
+    // Go home first before retry pass
+    await goHomeFirst(homeSpeed);
+    if(simEmergency){restoreSimBtns();return;}
+    await simWait(300);
+
+    for(const retrySlot of emptySlotsForRetry){
+      if(simEmergency)break;
+      addSimLog('↺ Retry S'+retrySlot+' (once only)','move');
+
+      const retryMs = getCumulativeDelay(retrySlot);
+      await simSerial('MOTOR_'+dir+':'+scanSpeed);
+      simMoving=true;
+      const rStart=Date.now();
+      while(Date.now()-rStart<retryMs){
+        if(simEmergency||simLimitHit)break;
+        await new Promise(r=>setTimeout(r,20));
+      }
+      await simSerial('MOTOR_STOP');
+      simMoving=false;
+      if(simEmergency)break;
+
+      simSlotNow=retrySlot;
+      await simSerial('SET_SLOT:'+retrySlot);
+      highlightSlot(retrySlot);
+      await simSerial('READ_SLOT:'+retrySlot);
+      await simWait(600);
+
+      setSimState('scanning','🔄 Retry S'+retrySlot);
+      const retryRes = await runSimSlotScan(retrySlot, true);
+      if(simEmergency)break;
+
+      const retryEl=document.getElementById('scmResult'+retrySlot);
+      slotResults[retrySlot]=retryEl?retryEl.textContent:'—';
+
+      if(!retryRes.garmentInFrame){
+        // Still empty after retry — mark slot as EMPTY
+        slotResults[retrySlot]='EMPTY';
+        markSlotEmpty(retrySlot);
+        addSimLog('S'+retrySlot+': confirmed EMPTY after retry','info');
+      } else {
+        addSimLog('🔄 S'+retrySlot+' retry: '+slotResults[retrySlot]+' ✅','info');
+      }
+
+      // Go home before next retry slot
+      if(emptySlotsForRetry.indexOf(retrySlot) < emptySlotsForRetry.length-1){
+        await goHomeFirst(homeSpeed);
+        if(simEmergency)break;
+        await simWait(200);
+      }
+    }
+
+    // Home after retry pass
+    if(!simEmergency){
+      await goHomeFirst(homeSpeed);
+      addSimLog('🏠 Home after retry pass','info');
+    }
+  }
+
+  if(!simEmergency){
+    setSimState('idle','✅ ALL DONE');
+    addSimLog('=== All 5 slots complete ===','scan');
+    sendBuzzer('BUZ_SAVED');
+    showToast('✅ All 5 slots scanned!');
+
+    // ── UV auto-on if ALL slots DRY ───────────────────────
+    const allDry    = Object.values(slotResults).every(r=>r.includes('DRY'));
+    const anyResult = Object.keys(slotResults).length > 0;
+    if(anyResult && allDry){
+      addSimLog('☀️ ALL SLOTS DRY — UV ON','dry');
+      showToast('☀️ All dry! UV light ON');
+      if(!relayOn){
+        relayOn=true;
+        const btn=document.getElementById('btnRelayToggle');
+        const txt=document.getElementById('relayStatusTxt');
+        if(btn){btn.style.background='#16a34a';btn.style.borderColor='#22c55e';btn.style.color='#fff';btn.textContent='⚡ ON';}
+        if(txt){txt.textContent='ON';txt.style.color='#22c55e';}
+        await simSerial('RELAY_ON');
+      }
+    } else if(anyResult){
+      addSimLog('💧 Some WET — UV stays OFF','wet');
+      if(relayOn){
+        relayOn=false;
+        const btn=document.getElementById('btnRelayToggle');
+        const txt=document.getElementById('relayStatusTxt');
+        if(btn){btn.style.background='#1e293b';btn.style.borderColor='#334155';btn.style.color='#94a3b8';btn.textContent='⚡ Toggle';}
+        if(txt){txt.textContent='OFF';txt.style.color='#475569';}
+        await simSerial('RELAY_OFF');
+      }
+    }
+
+    // ── Save config to Firebase ───────────────────────────
+    saveSimConfig();
+  }
+  restoreSimBtns();
+};
+
+// ── SCAN CURRENT SLOT ─────────────────────────────────────
+window.simScanCurrent=async()=>{
+  if(simSlotNow===0){addSimLog('Go to a slot first','stop');return;}
+  setSimState('scanning','🔍 Scanning Slot '+simSlotNow);
+  await simSerial('READ_SLOT:'+simSlotNow);
+  await simWait(500);
+  await runSimSlotScan(simSlotNow);
+};
+
+// ── Full scan for one slot ────────────────────────────────
+async function runSimSlotScan(slot, skipBuzzer=false){
+  const useSensor=document.getElementById('simToggleSensor').checked;
+  const useImage =document.getElementById('simToggleImage').checked;
+  const useClaude=document.getElementById('simToggleClaude').checked;
+  const sensor   = slotSensor[slot];
+
+  try{
+    const votes=[];
+    let garmentInFrame=true; // assume present unless Claude says otherwise
+
+    // Sensor vote using THIS slot's DHT
+    if(useSensor && sensor){
+      const sv=sensorVote(sensor.hum,document.getElementById('testUseLearned').checked,'testWetThr','testDryThr');
+      votes.push({label:sv.label,conf:sv.conf,weight:0.6});
+      addSimLog('S'+slot+' Sensor: '+(sv.label||'?')+' hum='+sensor.hum.toFixed(1)+'%','scan');
+    }
+
+    // kNN
+    if(useImage){
+      const kv=knnVote(simCanvas,simCtx2,'videoSim',false);
+      votes.push({label:kv.label,conf:kv.conf,weight:0.2});
+      addSimLog('S'+slot+' kNN: '+kv.label,'scan');
+    }
+
+    // Claude
+    let av={label:null,conf:0,color:'',color_hex:'',garment_type:''};
+    if(useClaude){
+      av=await claudeVote(simCanvas,simCtx2,'videoSim',false,
+        votes[0]||null, votes[1]||null);
+      if(av.label)votes.push({label:av.label,conf:av.conf,weight:0.2});
+      garmentInFrame = av.garment_in_frame !== false;
+      addSimLog('S'+slot+' Claude: '+(av.label||'?')+' '+av.color+' '+av.garment_type+
+        (garmentInFrame?'':' ⚠️ NO GARMENT IN FRAME'),'scan');
+      if(!garmentInFrame){
+        addSimLog('⚠️ S'+slot+': No garment detected — slot may be empty','stop');
+      }
+    }
+
+    const d=weightedDecision(votes);
+    const result=d.label;
+    updateSlotResult(slot,result,d.conf,av.color,av.color_hex,av.garment_type);
+    addSimLog('S'+slot+' RESULT: '+result+' ('+Math.round(d.conf*100)+'%)',result==='WET'?'wet':'dry');
+    // Only beep when scanning manually — in RUN ALL skip so Arduino
+    // isn't blocked by buzzer when next MOTOR_CCW command arrives
+    if(!skipBuzzer) sendBuzzer(result==='WET'?'BUZ_WET':'BUZ_DRY');
+    wsSend('result',{label:result,conf:d.conf,slot,garment_in_frame:garmentInFrame,
+      color:av.color,color_hex:av.color_hex,garment_type:av.garment_type,
+      sensor:sensor||null,timestamp:new Date().toISOString()});
+    saveValidationResult(result,d.conf,null,null,av);
+    setSimState(result==='WET'?'wet':'dry',
+      result==='WET'?'💧 Slot '+slot+' WET':'☀️ Slot '+slot+' DRY');
+    return {result, garmentInFrame};
+
+  }catch(e){
+    addSimLog('Scan error S'+slot+': '+e.message,'stop');
+    return {result:'ERROR', garmentInFrame:false};
+  }
+}
+
+// ── EMERGENCY STOP ────────────────────────────────────────
+window.simEStop=async()=>{
+  simEmergency=true;simMoving=false;simLimitHit=false;
+  await simSerial('MOTOR_STOP');
+  sendBuzzer('BUZ_ERROR');
+  setSimState('stopped','🛑 STOPPED');
+  addSimLog('⛔ EMERGENCY STOP','stop');
+  showToast('⛔ Emergency Stop!');
+  restoreSimBtns();
+};
+
+// ── Relay ────────────────────────────────────────────────
+let relayOn = false;
+window.simRelayToggle=async()=>{
+  relayOn = !relayOn;
+  const ok = await simSerial(relayOn ? 'RELAY_ON' : 'RELAY_OFF');
+  if(ok){
+    const btn = document.getElementById('btnRelayToggle');
+    const txt = document.getElementById('relayStatusTxt');
+    if(btn && txt){
+      btn.style.background   = relayOn ? '#16a34a' : '#1e293b';
+      btn.style.borderColor  = relayOn ? '#22c55e' : '#334155';
+      btn.style.color        = relayOn ? '#fff'    : '#94a3b8';
+      btn.textContent        = relayOn ? '⚡ ON'   : '⚡ Toggle';
+      txt.textContent        = relayOn ? 'ON'      : 'OFF';
+      txt.style.color        = relayOn ? '#22c55e' : '#475569';
+    }
+    addSimLog('Relay: '+(relayOn?'ON':'OFF'),'info');
+  }
+};
+
+// ── Save/load sim config to Firebase ─────────────────────
+function markConfigDirty(){
+  const btn = document.getElementById('btnSaveConfig');
+  if(btn){
+    btn.style.background='#92400e';
+    btn.style.borderColor='#f59e0b';
+    btn.style.color='#fcd34d';
+    btn.textContent='💾 Save Config *';
+  }
+}
+
+async function saveSimConfig(){
+  try{
+    const config={
+      delay1: parseInt(document.getElementById('delay1').value)||2550,
+      delay2: parseInt(document.getElementById('delay2').value)||2900,
+      delay3: parseInt(document.getElementById('delay3').value)||3200,
+      delay4: parseInt(document.getElementById('delay4').value)||3550,
+      delay5: parseInt(document.getElementById('delay5').value)||2800,
+      scanSpeed: parseInt(document.getElementById('simSpeed').value)||50,
+      homeSpeed: parseInt(document.getElementById('simHomeSpeed').value)||80,
+      homeTimeout: parseInt(document.getElementById('simHomeTimeout').value)||30,
+      savedAt: new Date().toISOString()
+    };
+    await setDoc(doc(db,'app_settings','sim_config'), config);
+    addSimLog('💾 Config saved to Firebase','info');
+    showToast('💾 Config saved!');
+    // Lower-right save notification
+    const ts=document.getElementById('toastSave');
+    if(ts){
+      ts.textContent='💾 Slot config saved to Firebase ✅  '+new Date().toLocaleTimeString();
+      ts.classList.add('show');
+      clearTimeout(ts._t);
+      ts._t=setTimeout(()=>ts.classList.remove('show'),4000);
+    }
+    const btn2=document.getElementById('btnSaveConfig');
+    if(btn2){btn2.style.background='#14532d';btn2.style.borderColor='#22c55e';btn2.style.color='#4ade80';btn2.textContent='✅ Saved!';}
+    setTimeout(()=>{const b=document.getElementById('btnSaveConfig');if(b){b.style.background='#1e293b';b.style.borderColor='#334155';b.style.color='#38bdf8';b.textContent='💾 Save Config';}},2000);
+    // Also show in activity log
+    addLog('💾 Sim config saved — delays: '+
+      config.delay1+'/'+config.delay2+'/'+config.delay3+'/'+
+      config.delay4+'/'+config.delay5+'ms  scan:'+config.scanSpeed+' home:'+config.homeSpeed,'s');
+  }catch(e){
+    addSimLog('Config save error: '+e.message,'stop');
+    showToast('❌ Save failed: '+e.message);
+  }
+}
+
+async function loadSimConfig(){
+  try{
+    const snap = await getDoc(doc(db,'app_settings','sim_config'));
+    if(!snap.exists()) return;
+    const d = snap.data();
+    if(d.delay1) document.getElementById('delay1').value=d.delay1;
+    if(d.delay2) document.getElementById('delay2').value=d.delay2;
+    if(d.delay3) document.getElementById('delay3').value=d.delay3;
+    if(d.delay4) document.getElementById('delay4').value=d.delay4;
+    if(d.delay5) document.getElementById('delay5').value=d.delay5;
+    if(d.scanSpeed) document.getElementById('simSpeed').value=d.scanSpeed;
+    if(d.homeSpeed) document.getElementById('simHomeSpeed').value=d.homeSpeed;
+    if(d.homeTimeout) document.getElementById('simHomeTimeout').value=d.homeTimeout;
+    addSimLog('📂 Config loaded from Firebase','info');
+  }catch(e){ addSimLog('Config load error: '+e.message,'stop'); }
+}
+
+function markSlotEmpty(slot){
+  // Mark slot card visually as EMPTY
+  const card = document.getElementById('slotCard'+slot);
+  if(card){ card.className='slot-card-mini slot-empty'; }
+  const res = document.getElementById('scmResult'+slot);
+  if(res){ res.textContent='EMPTY'; res.style.color='#475569'; }
+  const lbl = document.getElementById('scmLabel'+slot);
+  if(lbl){ lbl.textContent='No Garment'; }
+  const hum = document.getElementById('scmHum'+slot);
+  if(hum){ hum.textContent='—%'; }
+  const tmp = document.getElementById('scmTemp'+slot);
+  if(tmp){ tmp.textContent='—°C'; }
+}
+
+function restoreSimBtns(){
+  ['btnSimRun','btnSimHome','btnSimScanNow'].forEach(id=>{
+    const b=document.getElementById(id);if(b)b.disabled=false;
+  });
+}
+
+// Manual home confirm — for when limit switch was triggered before clicking HOME
+window.simConfirmHome=()=>{
+  simSlotNow   = 0;
+  simLimitHit  = false;
+  simMoving    = false;
+  const lb=document.getElementById('simLimitBadge');
+  if(lb){lb.textContent='HOME ✅';lb.style.background='rgba(34,197,94,.4)';}
+  setSimState('idle','🏠 HOME');
+  addSimLog('🏠 Home position manually confirmed — ready to calibrate','info');
+  showToast('🏠 Home set! Use S1–S5 to calibrate slot delays');
+};
+
+// Hook: extend parseSensor to also handle sim serial lines
+// We patch this after parseSensor is defined
+const _simExtraParse = (line)=>{
+  if(parseSlotSensor(line))return true;
+  parseSimSerial(line);
+  return false;
+};
+
+// Run after DOM is fully ready
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', initApp);
+}else{
+  initApp();
+}
+</script>
+</body>
+</html>

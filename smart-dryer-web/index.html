@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SmartDryer — V2 Control Dashboard</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:        #070b12;
+  --bg2:       #0d1220;
+  --bg3:       #111827;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.12);
+  --wet:       #3b82f6;
+  --wet-glow:  rgba(59,130,246,0.35);
+  --wet-dim:   rgba(59,130,246,0.08);
+  --dry:       #f59e0b;
+  --dry-glow:  rgba(245,158,11,0.35);
+  --dry-dim:   rgba(245,158,11,0.08);
+  --ok:        #10b981;
+  --ok-glow:   rgba(16,185,129,0.3);
+  --muted:     #4b5563;
+  --text:      #f1f5f9;
+  --text2:     #94a3b8;
+  --text3:     #475569;
+  --mono:      'DM Mono', monospace;
+  --sans:      'Outfit', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ── GRID NOISE BACKGROUND ── */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(59,130,246,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 110%, rgba(245,158,11,0.06) 0%, transparent 60%);
+  pointer-events:none;z-index:0;
+}
+
+/* ── HEADER ── */
+header{
+  position:sticky;top:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 32px;
+  border-bottom:1px solid var(--border);
+  background:rgba(7,11,18,0.8);
+  backdrop-filter:blur(20px);
+}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-icon{
+  width:36px;height:36px;
+  background:linear-gradient(135deg,#3b82f6,#06b6d4);
+  border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;
+  box-shadow:0 0 20px rgba(59,130,246,0.3);
+}
+.brand-name{font-size:1.1rem;font-weight:700;letter-spacing:-0.5px}
+.brand-name span{color:var(--text3);font-weight:400}
+.header-right{display:flex;align-items:center;gap:16px}
+.live-badge{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(16,185,129,0.1);
+  border:1px solid rgba(16,185,129,0.25);
+  border-radius:20px;padding:5px 12px;
+  font-size:0.75rem;font-weight:600;color:var(--ok);
+  font-family:var(--mono);letter-spacing:0.5px;
+}
+.live-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--ok);
+  animation:livepulse 1.5s ease infinite;
+}
+@keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.8)}}
+.last-update{font-size:0.72rem;color:var(--text3);font-family:var(--mono)}
+
+/* ── MAIN LAYOUT ── */
+main{
+  position:relative;z-index:1;
+  max-width:1400px;margin:0 auto;
+  padding:32px 24px;
+  display:flex;flex-direction:column;gap:32px;
+}
+.section-title{
+  font-size:0.75rem;font-weight:600;letter-spacing:2px;
+  text-transform:uppercase;color:var(--text3);
+  font-family:var(--mono);
+  display:flex;align-items:center;gap:8px;margin-bottom:16px;
+}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── SLOTS ── */
+.slots-row{
+  display:grid;gap:20px;
+  grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+}
+.slot-card{
+  position:relative;overflow:hidden;
+  border-radius:20px;
+  border:1px solid var(--border2);
+  background:var(--bg2);
+  padding:24px;
+  transition:border-color 0.5s,box-shadow 0.5s;
+}
+.slot-card.wet{
+  border-color:rgba(59,130,246,0.4);
+  box-shadow:0 0 60px var(--wet-glow), inset 0 0 40px rgba(59,130,246,0.04);
+}
+.slot-card.dry{
+  border-color:rgba(245,158,11,0.4);
+  box-shadow:0 0 60px var(--dry-glow), inset 0 0 40px rgba(245,158,11,0.04);
+}
+.slot-card.unknown{
+  border-color:var(--border);
+  box-shadow:none;
+}
+.slot-blob{
+  position:absolute;top:-40px;right:-40px;
+  width:150px;height:150px;
+  border-radius:50%;
+  filter:blur(50px);
+  opacity:0.15;
+  transition:background 0.5s;
+  pointer-events:none;
+}
+.slot-card.wet .slot-blob{background:#3b82f6}
+.slot-card.dry .slot-blob{background:#f59e0b}
+.slot-card.unknown .slot-blob{background:#475569}
+
+.slot-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+.slot-label{font-size:0.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text3);font-family:var(--mono);}
+.slot-number{font-size:1.3rem;font-weight:900;color:var(--text);margin-top:2px}
+.slot-badge{
+  padding:4px 10px;border-radius:20px;
+  font-size:0.65rem;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;
+  font-family:var(--mono);
+}
+.slot-card.wet .slot-badge{background:var(--wet-dim);color:var(--wet);border:1px solid rgba(59,130,246,0.3)}
+.slot-card.dry .slot-badge{background:var(--dry-dim);color:var(--dry);border:1px solid rgba(245,158,11,0.3)}
+.slot-card.unknown .slot-badge{background:rgba(71,85,105,0.2);color:var(--text3);border:1px solid var(--border)}
+
+.slot-status-wrap{display:flex;align-items:center;gap:12px}
+.slot-icon{font-size:2.5rem;line-height:1;filter:drop-shadow(0 0 20px currentColor)}
+.slot-status-text{font-size:2rem;font-weight:900;letter-spacing:-1px;line-height:1;transition:color 0.4s;}
+.slot-card.wet .slot-status-text{color:var(--wet)}
+.slot-card.dry .slot-status-text{color:var(--dry)}
+.slot-card.unknown .slot-status-text{color:var(--text3)}
+.slot-conf{font-size:0.7rem;color:var(--text3);font-family:var(--mono);margin-top:4px;}
+
+.conf-bar-wrap{margin-top:16px}
+.conf-bar-label{display:flex;justify-content:space-between;font-size:0.65rem;color:var(--text3);font-family:var(--mono);margin-bottom:4px;}
+.conf-bar-bg{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;}
+.conf-bar-fill{height:100%;border-radius:2px;transition:width 1s cubic-bezier(0.4,0,0.2,1);width:0%;}
+.slot-card.wet .conf-bar-fill{background:linear-gradient(90deg,#1d4ed8,#3b82f6,#7dd3fc)}
+.slot-card.dry .conf-bar-fill{background:linear-gradient(90deg,#b45309,#f59e0b,#fcd34d)}
+
+.snap-btn {
+  margin-top: 12px;
+  width: 100%;
+  padding: 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.snap-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+/* ── SENSORS ── */
+.sensor-panel {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 16px; padding: 24px;
+}
+.sensor-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-top:16px;
+}
+.sensor-item {
+  background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px; text-align:center;
+  border: 1px solid var(--border);
+}
+.s-label { font-size:0.65rem; color:var(--text3); font-family:var(--mono); margin-bottom:4px; }
+.s-val { font-size:1.2rem; font-weight:700; color:var(--text); }
+.s-val span { font-size:0.7rem; color:var(--text3); margin-left:2px; }
+.s-glow.temp { color: #f97316; }
+.s-glow.hum { color: #38bdf8; }
+
+/* ── CONTROLS (Scan, Motor, SMS) ── */
+.controls-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+}
+@media(max-width:768px){ .controls-grid{grid-template-columns: 1fr;} .sensor-grid{grid-template-columns: repeat(2,1fr);} }
+
+.ctrl-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 16px; padding: 24px; position:relative;
+}
+.big-btn {
+  width:100%; padding: 16px; border-radius: 12px; border:none;
+  font-size: 1rem; font-weight: 700; letter-spacing:1px; cursor:pointer;
+  transition: all 0.3s; color:#fff; font-family:var(--sans);
+}
+.btn-start { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 0 20px rgba(16,185,129,0.2); }
+.btn-stop { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 0 20px rgba(239,68,68,0.2); }
+.btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.btn-outline { background: transparent; border: 1px solid var(--border); color:var(--text2); }
+.btn-outline:hover { background: rgba(255,255,255,0.05); color:var(--text); }
+
+.input-grp { display:flex; gap:8px; margin-top:12px; }
+.input-grp input {
+  flex:1; background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+  color: var(--text); padding: 12px; border-radius: 8px; font-family: var(--mono);
+}
+.input-row { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding:8px 0; }
+.input-sm { width: 80px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 6px; text-align:center; font-family:var(--mono); }
+
+/* Modal */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(5px);
+  z-index:999; display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity 0.3s;
+}
+.modal-overlay.active { opacity:1; pointer-events:auto; }
+.modal-content {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 20px;
+  padding: 24px; max-width: 800px; width: 90%; position:relative;
+}
+.modal-close { position:absolute; top:20px; right:20px; background:none; border:none; color:var(--text3); cursor:pointer; font-size:1.5rem; }
+.modal-img { width: 100%; border-radius: 12px; margin-top: 16px; border:1px solid var(--border); max-height:60vh; object-fit:contain; }
+
+/* Status Bar */
+.status-bar {
+  display:flex; justify-content:space-between; padding: 12px 24px;
+  background: rgba(16,185,129,0.05); border: 1px solid rgba(16,185,129,0.2);
+  border-radius: 12px; color: var(--ok); font-family: var(--mono); font-size:0.8rem;
+  margin-bottom: 24px;
+}
+.status-bar.idle { background: rgba(255,255,255,0.02); border-color:var(--border); color: var(--text2); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">👕</div>
+    <div>
+      <div class="brand-name">SmartDryer <span>/ V2</span></div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge" id="uvBadge" style="display:none;background:rgba(167,139,250,0.1);color:#a78bfa;border-color:rgba(167,139,250,0.3)">UV ACTIVE</div>
+    <div class="live-badge"><div class="live-dot"></div><span id="connState">CONNECTING</span></div>
+  </div>
+</header>
+
+<main>
+  
+  <div class="status-bar idle" id="systemStatus">
+    <span>System Status: IDLE</span>
+    <span id="lastCycle">Last cycle: —</span>
+  </div>
+
+  <!-- SLOTS GRID -->
+  <div>
+    <div class="section-title">Drying Slots</div>
+    <div class="slots-row" id="slotsContainer">
+      <!-- Generated by JS -->
+    </div>
+  </div>
+
+  <!-- SENSORS -->
+  <div class="sensor-panel">
+    <div class="section-title">Telemetry · 5x DHT Array</div>
+    <div style="display:flex;gap:32px;align-items:center;margin-bottom:16px">
+      <div>
+        <div class="s-label">AVG TEMP</div>
+        <div class="s-val s-glow temp" id="avgTemp">--<span>°C</span></div>
+      </div>
+      <div>
+        <div class="s-label">AVG HUMIDITY</div>
+        <div class="s-val s-glow hum" id="avgHum">--<span>%</span></div>
+      </div>
+    </div>
+    <div class="sensor-grid" id="sensorGrid">
+      <!-- Generated by JS -->
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls-grid">
+    
+    <!-- SCAN CONTROL -->
+    <div class="ctrl-card">
+      <div class="section-title">Scan Control</div>
+      <button id="btnScan" class="big-btn btn-start">▶ START FULL SCAN</button>
+      
+      <div style="margin-top:24px">
+        <div class="s-label" style="display:flex;justify-content:space-between">
+          <span>SCAN INTERVAL</span>
+          <span id="intervalVal">300s (5m)</span>
+        </div>
+        <input type="range" id="scanSlider" min="60" max="3600" step="60" value="300" style="width:100%;margin-top:8px">
+      </div>
+    </div>
+
+    <!-- SMS CONFIG -->
+    <div class="ctrl-card">
+      <div class="section-title">Notifications (Semaphore SMS)</div>
+      <p style="font-size:0.75rem;color:var(--text3);margin-bottom:12px">Alerts triggered when all 5 slots are completely DRY.</p>
+      <div class="input-grp">
+        <input type="text" id="smsInput" placeholder="+639XXXXXXXXX">
+        <button id="btnSaveSms" class="big-btn btn-primary" style="width:auto;padding:0 20px">SAVE</button>
+      </div>
+      <div class="input-grp">
+        <button id="btnTestSms" class="big-btn btn-outline" style="padding:10px">SEND TEST SMS (₱0.50)</button>
+      </div>
+    </div>
+
+    <!-- MOTOR CONFIG -->
+    <div class="ctrl-card" style="grid-column: 1 / -1; max-width: 600px;">
+      <div class="section-title">L298N Motor Calibration</div>
+      <p style="font-size:0.75rem;color:var(--text3);margin-bottom:12px">Milliseconds of travel distance from the Limit Switch (Home = 0).</p>
+      <div id="motorGrid">
+        <!-- Generated by JS -->
+      </div>
+      <button id="btnSaveMotor" class="big-btn btn-primary" style="margin-top:16px;padding:12px">Save Calibration</button>
+    </div>
+
+  </div>
+
+</main>
+
+<footer>SmartDryer IoT Dashboard · Realtime V2</footer>
+
+<!-- SNAPSHOT MODAL -->
+<div class="modal-overlay" id="snapModal">
+  <div class="modal-content">
+    <button class="modal-close" id="btnCloseModal">×</button>
+    <div class="section-title" id="snapTitle" style="color:var(--text)">Slot Snapshot</div>
+    <img src="" id="snapImg" class="modal-img" alt="Snapshot"/>
+  </div>
+</div>
+
+<!-- FIREBASE SDK -->
+<script type="module">
+import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, onSnapshot, collection, addDoc, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// Same config as the older dashboard (ensure this points to your active database)
+const FBC = {
+  apiKey:            "AIzaSyBQV63IRXUjJQKgdcNJszKjomjdkTlgpuM",
+  authDomain:        "ehubtest-51d0a.firebaseapp.com",
+  projectId:         "ehubtest-51d0a",
+  storageBucket:     "ehubtest-51d0a.firebasestorage.app",
+  messagingSenderId: "631221590037",
+  appId:             "1:631221590037:web:5deb33cd5cc005dc56961c"
+};
+
+const app = initializeApp(FBC);
+const db  = getFirestore(app);
+
+// ── UI GENERATION ──
+function initUI() {
+  const slotsCont = document.getElementById('slotsContainer');
+  const sensorCont= document.getElementById('sensorGrid');
+  const motorCont = document.getElementById('motorGrid');
+
+  let sHtml = '', senHtml = '', mHtml = '';
+
+  for(let i=1; i<=5; i++) {
+    // Slots
+    sHtml += `
+      <div class="slot-card unknown" id="slot${i}">
+        <div class="slot-blob"></div>
+        <div class="slot-header">
+          <div>
+            <div class="slot-label">Drying Rack</div>
+            <div class="slot-number">SLOT ${i}</div>
+          </div>
+          <div class="slot-badge" id="badge${i}">WAITING</div>
+        </div>
+        <div class="slot-status-wrap">
+          <div class="slot-icon" id="icon${i}">⏳</div>
+          <div class="slot-status-text" id="status${i}">—</div>
+        </div>
+        <div class="conf-bar-wrap">
+          <div class="conf-bar-label"><span>DRY</span><span id="conf${i}">0%</span><span>WET</span></div>
+          <div class="conf-bar-bg"><div class="conf-bar-fill" id="bar${i}"></div></div>
+        </div>
+        <button class="snap-btn" onclick="openSnap(${i})">View Snapshot</button>
+      </div>`;
+    
+    // Sensors
+    senHtml += `
+      <div class="sensor-item">
+        <div class="s-label">SLOT ${i}</div>
+        <div class="s-glow temp" style="font-size:1rem;margin-bottom:4px" id="stemp${i}">--<span>°C</span></div>
+        <div class="s-glow hum" style="font-size:1rem" id="shum${i}">--<span>%</span></div>
+      </div>`;
+
+    // Motor calib
+    mHtml += `
+      <div class="input-row">
+        <span class="s-label" style="margin:0;font-size:0.8rem">Slot ${i} Offset</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button class="btn-outline" style="padding:4px 8px;border-radius:4px" onclick="adjMs(${i}, -50)">-</button>
+          <input type="number" id="ms${i}" class="input-sm" value="0">
+          <button class="btn-outline" style="padding:4px 8px;border-radius:4px" onclick="adjMs(${i}, 50)">+</button>
+          <span class="s-label" style="margin:0 0 0 4px">ms</span>
+        </div>
+      </div>`;
+  }
+  slotsCont.innerHTML = sHtml;
+  sensorCont.innerHTML= senHtml;
+  motorCont.innerHTML = mHtml;
+}
+initUI();
+
+// ── FIREBASE LISTENERS ──
+let slotUrls = {};
+let isScanning = false;
+
+// 1. Status listener
+onSnapshot(doc(db, 'system', 'status'), snap => {
+  if(!snap.exists()) return;
+  const d = snap.data();
+  document.getElementById('connState').textContent = 'LIVE';
+  
+  const sb = document.getElementById('systemStatus');
+  const btn= document.getElementById('btnScan');
+  isScanning = d.running;
+
+  if(d.running) {
+    sb.className = 'status-bar';
+    sb.innerHTML = `<span>⚡ SCANNING... (Slot ${d.current_slot||'?'})</span>`;
+    btn.className = 'big-btn btn-stop';
+    btn.textContent = '⏹ STOP SCAN';
+  } else {
+    sb.className = 'status-bar idle';
+    sb.innerHTML = `<span>System Status: IDLE</span><span id="lastCycle">Last cycle: ${d.last_cycle_at||'—'}</span>`;
+    btn.className = 'big-btn btn-start';
+    btn.textContent = '▶ START FULL SCAN';
+  }
+
+  document.getElementById('uvBadge').style.display = d.uv_on ? 'flex' : 'none';
+}, err => {
+  document.getElementById('connState').textContent = 'OFFLINE';
+});
+
+// 2. Config listener
+onSnapshot(doc(db, 'system', 'config'), snap => {
+  if(!snap.exists()) return;
+  const d = snap.data();
+  if(d.sms_recipient && !document.getElementById('smsInput').value) {
+    document.getElementById('smsInput').value = d.sms_recipient;
+  }
+  if(d.scan_interval) {
+    document.getElementById('scanSlider').value = d.scan_interval;
+    document.getElementById('intervalVal').textContent = d.scan_interval + 's';
+  }
+  if(d.slot_steps) {
+    for(let i=1;i<=5;i++) {
+      if(d.slot_steps[i]) document.getElementById('ms'+i).value = d.slot_steps[i];
+    }
+  }
+});
+
+// 3. Sensors listener
+onSnapshot(doc(db, 'system', 'sensors'), snap => {
+  if(!snap.exists()) return;
+  const d = snap.data();
+  let sums={t:0, h:0}, count=0;
+
+  for(let i=1;i<=5;i++){
+    const sd = d[i];
+    if(sd && sd.temperature) {
+      document.getElementById('stemp'+i).innerHTML = `${sd.temperature.toFixed(1)}<span>°C</span>`;
+      document.getElementById('shum'+i).innerHTML = `${sd.humidity.toFixed(1)}<span>%</span>`;
+      sums.t += sd.temperature; sums.h += sd.humidity; count++;
+    }
+  }
+  if(count>0){
+    document.getElementById('avgTemp').innerHTML = `${(sums.t/count).toFixed(1)}<span>°C</span>`;
+    document.getElementById('avgHum').innerHTML = `${(sums.h/count).toFixed(1)}<span>%</span>`;
+  }
+});
+
+// 4. Slots listener
+onSnapshot(doc(db, 'system', 'slots'), snap => {
+  if(!snap.exists()) return;
+  const d = snap.data();
+  for(let i=1; i<=5; i++){
+    const sd = d[i];
+    if(!sd) continue;
+    
+    // Save URL for modal
+    if(sd.snapshot_url) slotUrls[i] = sd.snapshot_url;
+
+    const el = document.getElementById('slot'+i);
+    const bg = document.getElementById('badge'+i);
+    const ic = document.getElementById('icon'+i);
+    const st = document.getElementById('status'+i);
+    const cf = document.getElementById('conf'+i);
+    const br = document.getElementById('bar'+i);
+
+    const isWet = sd.label==='WET';
+    const isDry = sd.label==='DRY';
+    
+    el.className = 'slot-card ' + (isWet?'wet':isDry?'dry':'unknown');
+    bg.textContent = isWet?'💧 WET':isDry?'☀️ DRY':'WAITING';
+    ic.textContent = isWet?'💧':isDry?'☀️':'⏳';
+    st.textContent = sd.label;
+    
+    const pct = Math.round((sd.confidence||0)*100);
+    cf.textContent = pct + '%';
+    br.style.width = pct + '%';
+  }
+});
+
+// ── COMMAND SENDER ──
+async function sendCommand(type, payload={}) {
+  try {
+    await addDoc(collection(db, 'commands'), {
+      type: type,
+      payload: payload,
+      timestamp: serverTimestamp(),
+      status: 'pending'
+    });
+  } catch(e) {
+    alert('Command failed: ' + e.message);
+  }
+}
+
+// ── BINDINGS ──
+window.adjMs = function(slot, amount) {
+  const el = document.getElementById('ms'+slot);
+  el.value = parseInt(el.value || 0) + amount;
+};
+
+window.openSnap = function(slot) {
+  const url = slotUrls[slot];
+  if(!url) return alert('No snapshot captured yet for Slot ' + slot);
+  document.getElementById('snapImg').src = url;
+  document.getElementById('snapTitle').textContent = `Slot ${slot} Snapshot`;
+  document.getElementById('snapModal').classList.add('active');
+};
+
+document.getElementById('btnCloseModal').onclick = ()=>document.getElementById('snapModal').classList.remove('active');
+
+document.getElementById('btnScan').onclick = ()=>{
+  sendCommand(isScanning ? 'scan_stop' : 'scan_start');
+};
+
+document.getElementById('btnTestSms').onclick = ()=>{
+  const p = document.getElementById('smsInput').value;
+  if(!p) return alert('Enter a phone number first');
+  sendCommand('sms_test', {number: p});
+  alert('SMS Dispatch requested via RPI');
+};
+
+document.getElementById('btnSaveSms').onclick = ()=>{
+  const p = document.getElementById('smsInput').value;
+  sendCommand('update_sms_recipient', {number: p});
+  alert('Saved to backend');
+};
+
+document.getElementById('btnSaveMotor').onclick = ()=>{
+  let steps = {};
+  for(let i=1;i<=5;i++) steps[i] = parseInt(document.getElementById('ms'+i).value||0);
+  sendCommand('update_config', {slot_steps: steps});
+  alert('Motor calibration saved');
+};
+
+document.getElementById('scanSlider').onchange = (e)=>{
+  const v = e.target.value;
+  document.getElementById('intervalVal').textContent = v + 's';
+  sendCommand('update_config', {scan_interval: parseInt(v)});
+};
+</script>
+</body>
+</html>
