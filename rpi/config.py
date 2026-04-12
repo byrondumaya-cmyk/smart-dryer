@@ -70,7 +70,8 @@ MAX_SCAN_INTERVAL_SECONDS     = 3600
 DHT_READ_INTERVAL = 10   # Seconds between full 5-sensor poll cycles
 
 
-
+# --- SMS (Semaphore PH) ---
+SMS_SENDER  = "Thesis"               # Approved Semaphore sender name
 SMS_API_URL = "https://api.semaphore.co/api/v4/messages"
 
 # --- Flask API ---

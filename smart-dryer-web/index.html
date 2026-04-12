@@ -370,6 +370,10 @@ main{
         <button class="btn-outline" onclick="cmd('test_relay')">💡 TEST UV RELAY (3s)</button>
         <button class="btn-outline" onclick="cmd('test_sms')">📲 TEST SMS ALERT</button>
       </div>
+      <div class="motor-btn-grp" style="margin-top:8px">
+        <button class="btn-outline" onclick="cmd('scan_dht')">🌡️ SCAN ALL DHT</button>
+        <button class="btn-outline" onclick="if(confirm('Reset all slot data?')) cmd('reset_cycle')">🗑️ RESET CYCLE DATA</button>
+      </div>
 
       <div class="input-grp" style="margin-top:16px;">
         <select id="buzzerState" class="bz-select">
@@ -581,6 +585,8 @@ const TOAST_LABELS = {
   'test_buzzer':   ['🔊 Buzzer test fired.', 'info'],
   'test_relay':    ['💡 UV relay test (3s)...', 'info'],
   'test_sms':      ['📲 Sending test SMS...', 'info'],
+  'scan_dht':      ['🌡️ Reading all DHT sensors...', 'info'],
+  'reset_cycle':   ['🗑️ Cycle data cleared.', 'warn'],
 };
 
 function showToast(msg, type='info') {

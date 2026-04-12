@@ -201,6 +201,35 @@ def post_command():
         else:
             return jsonify({"error": "SMS failed to send"}), 500
 
+    elif cmd == "scan_dht":
+        from modules.sensor import sensor
+        readings = sensor.read_all()
+        logger.info(f"Manual DHT scan: {readings}")
+        return jsonify({"status": "dht_scanned", "readings": readings})
+
+    elif cmd == "reset_cycle":
+        from config import TOTAL_SLOTS
+        state = state_store.load()
+        for i in range(1, TOTAL_SLOTS + 1):
+            state["slots"][str(i)] = {
+                "label": "WAITING",
+                "confidence": None,
+                "last_scanned": None,
+                "sensor_hum": None,
+                "sensor_temp": None,
+                "sensor_score": None,
+                "image_score": None,
+                "snapshot_url": None,
+                "stable_state": "UNKNOWN",
+                "breakdown": {}
+            }
+        state["last_cycle_at"] = None
+        state["all_dry_notified"] = False
+        state_store.save(state)
+        scanner._state = state
+        logger.info("Cycle data reset by user.")
+        return jsonify({"status": "cycle_reset"})
+
     return jsonify({"error": "unknown command"}), 400
 
 def generate_mjpeg():

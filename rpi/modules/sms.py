@@ -7,7 +7,7 @@
 import requests
 import logging
 
-from config import SMS_API_URL
+from config import SMS_API_URL, SMS_SENDER
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class SMSModule:
             "apikey":     api_key,
             "number":     number,
             "message":    message,
-            "sendername": "Thesis",
+            "sendername": SMS_SENDER,
         }
         try:
             logger.info(f"SMS: Sending to {number} via {SMS_API_URL}...")
