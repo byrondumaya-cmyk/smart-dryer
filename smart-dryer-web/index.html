@@ -545,12 +545,12 @@ onSnapshot(qLogs, snap => {
     if(!d.created_at) return;
     const timeStr = d.created_at.toDate().toLocaleTimeString([], {hour12:false});
     const lvlClass = d.level ? d.level.toLowerCase() : 'info';
-    html += \`
+    html += `
       <div class="log-line">
-        <div class="log-time">[\${timeStr}]</div>
-        <div class="log-msg log-\${lvlClass}">\${d.message}</div>
+        <div class="log-time">[${timeStr}]</div>
+        <div class="log-msg log-${lvlClass}">${d.message}</div>
       </div>
-    \`;
+    `;
   });
   logCont.innerHTML = html;
 });
