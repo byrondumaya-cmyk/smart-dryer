@@ -456,7 +456,12 @@ onSnapshot(doc(db, 'system', 'status'), snap => {
 
   document.getElementById('uvBadge').style.display = d.uv_on ? 'flex' : 'none';
 }, err => {
-  document.getElementById('connState').textContent = 'OFFLINE';
+  const el = document.getElementById('connState');
+  // permission-denied → Firestore rules blocking anonymous read
+  // unavailable     → network / Pi offline
+  el.textContent = err.code === 'permission-denied' ? 'RULES ERROR' : 'OFFLINE';
+  el.title = err.message;
+  console.error('[Firestore] status listener error:', err.code, err.message);
 });
 
 // 2. Config listener
@@ -484,16 +489,24 @@ onSnapshot(doc(db, 'system', 'sensors'), snap => {
   let sums={t:0, h:0}, count=0;
 
   for(let i=1;i<=5;i++){
-    const sd = d[i];
-    if(sd && sd.temperature) {
-      document.getElementById('stemp'+i).innerHTML = `${sd.temperature.toFixed(1)}<span>°C</span>`;
-      document.getElementById('shum'+i).innerHTML = `${sd.humidity.toFixed(1)}<span>%</span>`;
+    const sd = d[i] || d[String(i)];
+    const tempEl = document.getElementById('stemp'+i);
+    const humEl  = document.getElementById('shum'+i);
+    if(!tempEl || !humEl) continue;
+
+    if(sd && sd.online === false) {
+      // Sensor physically disconnected — show wiring error clearly
+      tempEl.innerHTML = `<span style="color:#ef4444;font-size:0.65rem">OFFLINE</span>`;
+      humEl.innerHTML  = `<span style="color:#ef4444;font-size:0.65rem">CHECK WIRING</span>`;
+    } else if(sd && sd.temperature != null) {
+      tempEl.innerHTML = `${sd.temperature.toFixed(1)}<span>°C</span>`;
+      humEl.innerHTML  = `${sd.humidity.toFixed(1)}<span>%</span>`;
       sums.t += sd.temperature; sums.h += sd.humidity; count++;
     }
   }
   if(count>0){
     document.getElementById('avgTemp').innerHTML = `${(sums.t/count).toFixed(1)}<span>°C</span>`;
-    document.getElementById('avgHum').innerHTML = `${(sums.h/count).toFixed(1)}<span>%</span>`;
+    document.getElementById('avgHum').innerHTML  = `${(sums.h/count).toFixed(1)}<span>%</span>`;
   }
 });
 

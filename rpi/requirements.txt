@@ -12,7 +12,8 @@ ultralytics>=8.0.0              # YOLOv8 inference
 
 # ── Hardware (Raspberry Pi only) ──────────────────────────────────────────────
 RPi.GPIO>=0.7.0
-adafruit-circuitpython-dht>=3.7.0
+adafruit-circuitpython-dht>=3.7.0   # fallback if pigpiod not running
+pigpio>=1.78                          # preferred DHT driver — fixes Pi 4 timing jitter
 
 # ── Firebase (model storage + auth) ──────────────────────────────────────────
 firebase-admin>=6.5.0

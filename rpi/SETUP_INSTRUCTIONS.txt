@@ -51,3 +51,57 @@
    q = Quit the application
 
 ============================================
+
+============================================
+  SMART DRYER V2 — ADDITIONAL SETUP NOTES
+============================================
+
+10. PIGPIO DAEMON (REQUIRED for reliable DHT sensors on Pi 4)
+    The sensor module uses pigpiod for hardware-timed GPIO reads.
+    Without it, pure-Python bitbang on Pi 4 causes "DHT sensor not found"
+    errors even with correct wiring.
+
+    a) Install pigpio (already in requirements.txt):
+       pip install pigpio --break-system-packages
+
+    b) Start daemon before running main.py:
+       sudo pigpiod
+
+    c) Make it start automatically on boot (recommended):
+       sudo systemctl enable pigpiod
+       sudo systemctl start pigpiod
+
+    d) Verify daemon is running:
+       sudo systemctl status pigpiod
+       # Should show: Active: active (running)
+
+    e) THEN start the Smart Dryer system:
+       cd ~/Smart_Dryer/smart-dryer/rpi
+       source venv/bin/activate
+       python main.py
+
+    Logs will confirm which driver was selected:
+       INFO sensor — Sensor polling started (5 slots) via [pigpio] driver.
+    If it shows [adafruit] the daemon isn't running — check step (d).
+
+11. FIRESTORE RULES (Required for dashboard to show LIVE)
+    If dashboard shows OFFLINE or RULES ERROR, update Firestore Security Rules:
+    Firebase Console → Firestore → Rules → paste:
+
+    rules_version = '2';
+    service cloud.firestore {
+      match /databases/{database}/documents {
+        match /system/{doc} {
+          allow read: if true;   // dashboard reads
+          allow write: if false; // only RPi service account writes
+        }
+        match /system_logs/{doc} {
+          allow read: if true;
+        }
+        match /commands/{doc} {
+          allow read, write: if true;  // dashboard sends commands
+        }
+      }
+    }
+
+============================================

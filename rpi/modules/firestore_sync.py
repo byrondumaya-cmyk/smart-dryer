@@ -204,9 +204,10 @@ def _poll_commands():
 
     while True:
         try:
+            from google.cloud.firestore_v1 import FieldFilter
             docs = (
                 _db.collection(COL_COMMANDS)
-                .where('status', '==', 'pending')
+                .where(filter=FieldFilter('status', '==', 'pending'))
                 .limit(5)
                 .get()
             )
@@ -229,3 +230,37 @@ def _poll_commands():
             logger.warning(f'Command poll error: {e}')
 
         time.sleep(3)   # Poll every 3 seconds
+
+
+# ── Heartbeat ──────────────────────────────────────────────────────────────────
+
+_heartbeat_running = False
+
+
+def start_heartbeat():
+    """
+    Write a 'last_seen' timestamp to system/status every 30 s.
+    This keeps the Firestore onSnapshot listener alive on the dashboard
+    so it never falls back to the OFFLINE error state while the Pi is idle.
+    """
+    global _heartbeat_running
+    if _heartbeat_running:
+        return
+    _heartbeat_running = True
+    t = threading.Thread(target=_heartbeat_loop, daemon=True, name='firestore-heartbeat')
+    t.start()
+    logger.info('Firestore heartbeat started (30 s interval).')
+
+
+def _heartbeat_loop():
+    while True:
+        time.sleep(30)
+        if not _init():
+            continue
+        try:
+            from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+            _db.collection(COL_SYSTEM).document(DOC_STATUS).set(
+                {'last_seen': SERVER_TIMESTAMP}, merge=True
+            )
+        except Exception as e:
+            logger.warning(f'Heartbeat write failed: {e}')
