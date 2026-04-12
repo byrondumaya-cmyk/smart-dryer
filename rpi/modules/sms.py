@@ -61,7 +61,7 @@ class SMSModule:
             "apikey":     api_key,
             "number":     number,
             "message":    message,
-            "sendername": "SEMAPHORE",
+            "sendername": "Thesis",
         }
         try:
             logger.info(f"SMS: Sending to {number} via {SMS_API_URL}...")
