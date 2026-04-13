@@ -232,22 +232,30 @@ class SensorModule:
             # Trigger all sensors first, then wait, then read — pipeline reads
             # so all sensors are sampling in parallel (no sequential blocking).
             while not self._stop_event.is_set():
-                self._trigger_all()
-                time.sleep(0.3)   # DHT needs ~250 ms to finish transmission
-                for slot_id in SLOT_SENSOR_MAP:
-                    if self._stop_event.is_set():
-                        break
-                    self._read_slot_pigpio(slot_id)
-                time.sleep(DHT_READ_INTERVAL)
+                try:
+                    self._trigger_all()
+                    time.sleep(0.3)   # DHT needs ~250 ms to finish transmission
+                    for slot_id in SLOT_SENSOR_MAP:
+                        if self._stop_event.is_set():
+                            break
+                        self._read_slot_pigpio(slot_id)
+                    time.sleep(DHT_READ_INTERVAL)
+                except Exception as e:
+                    logger.error(f"Sensor pigpio poll loop error: {e}")
+                    time.sleep(DHT_READ_INTERVAL)
         else:
             # adafruit / simulation: sequential with gaps
             while not self._stop_event.is_set():
-                for slot_id in SLOT_SENSOR_MAP:
-                    if self._stop_event.is_set():
-                        break
-                    self._read_slot_legacy(slot_id)
-                    time.sleep(0.5)
-                time.sleep(DHT_READ_INTERVAL)
+                try:
+                    for slot_id in SLOT_SENSOR_MAP:
+                        if self._stop_event.is_set():
+                            break
+                        self._read_slot_legacy(slot_id)
+                        time.sleep(0.5)
+                    time.sleep(DHT_READ_INTERVAL)
+                except Exception as e:
+                    logger.error(f"Sensor legacy poll loop error: {e}")
+                    time.sleep(DHT_READ_INTERVAL)
 
     def _trigger_all(self):
         """Trigger all pigpio DHT devices simultaneously."""

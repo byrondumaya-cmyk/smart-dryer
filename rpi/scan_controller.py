@@ -97,11 +97,17 @@ class ScanController:
 
         calib = self._state.get("calibration", {}).get(str(slot), {})
         if hum is not None: 
-            hum = round(hum + calib.get("h_offset", 0.0), 1)
-            sensor_data['humidity'] = hum
+            try:
+                hum = round(float(hum) + float(calib.get("h_offset", 0.0)), 1)
+                sensor_data['humidity'] = hum
+            except (ValueError, TypeError):
+                pass
         if temp is not None: 
-            temp = round(temp + calib.get("t_offset", 0.0), 1)
-            sensor_data['temperature'] = temp
+            try:
+                temp = round(float(temp) + float(calib.get("t_offset", 0.0)), 1)
+                sensor_data['temperature'] = temp
+            except (ValueError, TypeError):
+                pass
         
         wet_thresh = self._safe_float(self._state.get("thresholds", {}).get("wet", 80.0))
         dry_thresh = self._safe_float(self._state.get("thresholds", {}).get("dry", 75.0))

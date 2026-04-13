@@ -101,12 +101,15 @@ def get_state():
     # Apply calibration offsets
     calib = status.get("calibration", {})
     for slot_id, val in sensor_data.items():
-        h_off = calib.get(str(slot_id), {}).get("h_offset", 0.0)
-        t_off = calib.get(str(slot_id), {}).get("t_offset", 0.0)
-        if val.get("humidity") is not None:
-            val["humidity"] = round(val["humidity"] + h_off, 1)
-        if val.get("temperature") is not None:
-            val["temperature"] = round(val["temperature"] + t_off, 1)
+        try:
+            h_off = float(calib.get(str(slot_id), {}).get("h_offset", 0.0))
+            t_off = float(calib.get(str(slot_id), {}).get("t_offset", 0.0))
+            if val.get("humidity") is not None:
+                val["humidity"] = round(float(val["humidity"]) + h_off, 1)
+            if val.get("temperature") is not None:
+                val["temperature"] = round(float(val["temperature"]) + t_off, 1)
+        except (ValueError, TypeError) as e:
+            pass # fallback to original values if calibration cast fails
 
     status["sensor_live"] = sensor_data
     return jsonify(status)
