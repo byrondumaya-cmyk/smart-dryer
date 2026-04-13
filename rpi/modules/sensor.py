@@ -98,7 +98,7 @@ class _PigpioDHT:
 
         if level == pigpio.LOW:
             # ── Falling edge: dt = duration of the HIGH just ended ──────────
-            if self._bit >= 0:
+            if self._bit >= 0 and self._bit < 40:
                 # Data bit — shift in the bit value
                 self._data[self._bit >> 3] <<= 1
                 if dt > self._BIT_1_THRESHOLD_US:
@@ -150,6 +150,8 @@ class _PigpioDHT:
         self._temperature = None
         self._humidity    = None
         self._error       = None
+        self._bit         = -2
+        self._data        = [0] * 5
         self._pi.set_mode(self._gpio, pigpio.OUTPUT)
         self._pi.write(self._gpio, pigpio.LOW)
         time.sleep(0.018)        # ≥18 ms per DHT spec
