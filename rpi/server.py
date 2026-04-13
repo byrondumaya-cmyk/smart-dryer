@@ -97,6 +97,17 @@ def get_state():
     # Add sensor runtime polling
     from modules.sensor import sensor
     sensor_data = sensor.read_all()
+    
+    # Apply calibration offsets
+    calib = status.get("calibration", {})
+    for slot_id, val in sensor_data.items():
+        h_off = calib.get(str(slot_id), {}).get("h_offset", 0.0)
+        t_off = calib.get(str(slot_id), {}).get("t_offset", 0.0)
+        if val.get("humidity") is not None:
+            val["humidity"] = round(val["humidity"] + h_off, 1)
+        if val.get("temperature") is not None:
+            val["temperature"] = round(val["temperature"] + t_off, 1)
+
     status["sensor_live"] = sensor_data
     return jsonify(status)
 
@@ -161,12 +172,15 @@ def post_command():
             
         if "sms_recipient" in data:
             state["sms_recipient"] = data["sms_recipient"]
-            from modules.sms import sms
-            sms.set_recipient(data["sms_recipient"])
+
+        if "sms_recipients" in data:
+            state["sms_recipients"] = data["sms_recipients"]
 
         if "sms_api_key" in data:
             state["sms_api_key"] = data["sms_api_key"]
             
+        if "calibration" in data:
+            state["calibration"].update(data["calibration"])
         state_store.save(state)
         return jsonify({"status": "updated"})
 

@@ -49,7 +49,12 @@ DEFAULT_STATE = {
         "sms_cycle": DEFAULT_SMS_EVERY_CYCLE
     },
     "sms_recipient": "",
+    "sms_recipients": [],
     "sms_api_key": "",
+    "calibration": {
+        str(i): {"h_offset": 0.0, "t_offset": 0.0}
+        for i in range(1, TOTAL_SLOTS + 1)
+    },
     "all_dry_notified": False,
     "uv_on": False,
     "slots": {
@@ -92,6 +97,10 @@ def load() -> dict:
             state["thresholds"] = DEFAULT_STATE["thresholds"]
         if "dwell_time" not in state:
             state["dwell_time"] = DEFAULT_STATE["dwell_time"]
+        if "sms_recipients" not in state:
+            state["sms_recipients"] = [state["sms_recipient"]] if state.get("sms_recipient") else []
+        if "calibration" not in state:
+            state["calibration"] = DEFAULT_STATE["calibration"]
             
         return state
     except Exception as e:

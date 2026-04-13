@@ -97,6 +97,14 @@ class ScanController:
         sensor_data = sensor.read_slot(slot)
         hum = sensor_data.get('humidity') if sensor_data else None
         temp = sensor_data.get('temperature') if sensor_data else None
+
+        calib = self._state.get("calibration", {}).get(str(slot), {})
+        if hum is not None: 
+            hum = round(hum + calib.get("h_offset", 0.0), 1)
+            sensor_data['humidity'] = hum
+        if temp is not None: 
+            temp = round(temp + calib.get("t_offset", 0.0), 1)
+            sensor_data['temperature'] = temp
         
         wet_thresh = self._safe_float(self._state.get("thresholds", {}).get("wet", 80.0))
         dry_thresh = self._safe_float(self._state.get("thresholds", {}).get("dry", 75.0))

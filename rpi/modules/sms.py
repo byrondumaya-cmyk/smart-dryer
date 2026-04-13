@@ -14,49 +14,58 @@ logger = logging.getLogger(__name__)
 
 class SMSModule:
     def __init__(self):
-        self.recipient  = None
         self._sent_once = False   # Resets each scan cycle
-
-    def set_recipient(self, number: str):
-        self.recipient = number.strip()
-        logger.info(f"SMS recipient: {self.recipient}")
 
     def reset_sent_flag(self):
         """Call at the start of each scan cycle."""
         self._sent_once = False
 
-    def _get_api_key(self) -> str:
-        """Read the API key dynamically from persisted state."""
+    def _get_config(self) -> tuple:
+        """Read the API key and recipients dynamically from persistent state."""
         import state_store
         state = state_store.load()
-        key = state.get("sms_api_key", "")
-        return key.strip() if key else ""
+        key = state.get("sms_api_key", "").strip()
+        recipients = state.get("sms_recipients", [])
+        return key, [r.strip() for r in recipients if r.strip()]
 
     def send_drying_complete(self) -> bool:
         if self._sent_once:
             logger.info("SMS: already sent this cycle — skipping.")
             return True
-        if not self.recipient:
-            logger.warning("SMS: no recipient set — skipping.")
+            
+        api_key, recipients = self._get_config()
+        
+        if not recipients:
+            logger.warning("SMS: no recipients set — skipping.")
             return False
-        message = (
-            "Smart Dryer Alert: All slots are DRY! "
-            "You can collect your laundry now."
-        )
-        ok = self._send(self.recipient, message)
-        if ok:
-            self._sent_once = True
-        return ok
-
-    def send_custom(self, number: str, message: str) -> bool:
-        return self._send(number, message)
-
-    def _send(self, number: str, message: str) -> bool:
-        api_key = self._get_api_key()
+            
         if not api_key:
             logger.error("SMS: No API key configured. Set it in the dashboard.")
             return False
 
+        message = (
+            "Smart Dryer Alert: All slots are DRY! "
+            "You can collect your laundry now."
+        )
+        
+        success = False
+        for number in recipients:
+            ok = self._send(api_key, number, message)
+            if ok:
+                success = True
+                
+        if success:
+            self._sent_once = True
+            
+        return success
+
+    def send_custom(self, number: str, message: str) -> bool:
+        api_key, _ = self._get_config()
+        if not api_key:
+            return False
+        return self._send(api_key, number, message)
+
+    def _send(self, api_key: str, number: str, message: str) -> bool:
         payload = {
             "apikey":     api_key,
             "number":     number,
