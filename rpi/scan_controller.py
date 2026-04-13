@@ -35,9 +35,6 @@ class ScanController:
         for seg, ms in saved_segments.items():
             motor.set_segment(seg, int(ms))
 
-        # Restore SMS recipient
-        if self._state.get("sms_recipient"):
-            sms.set_recipient(self._state["sms_recipient"])
 
     def _log_event(self, msg: str, level: str = 'INFO'):
         ts = datetime.datetime.now().isoformat()
