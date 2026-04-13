@@ -154,6 +154,7 @@ class _PigpioDHT:
         self._pi.write(self._gpio, pigpio.LOW)
         time.sleep(0.018)        # ≥18 ms per DHT spec
         self._pi.set_mode(self._gpio, pigpio.INPUT)
+        self._pi.set_pull_up_down(self._gpio, pigpio.PUD_UP)
 
     @property
     def temperature(self):
