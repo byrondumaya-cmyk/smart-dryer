@@ -32,9 +32,11 @@ class GlobalCamera:
         
     def start(self):
         self._cam = cv2.VideoCapture(0)
-        # Try to set lower res for performance
-        self._cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        self._cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        # Explicitly request 720p with hardware MJPG to avoid USB saturation and lag
+        self._cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        self._cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self._cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        self._cam.set(cv2.CAP_PROP_FPS, 15)
         
         if not self._cam.isOpened():
             logger.error("Camera index 0 failed to open!")
