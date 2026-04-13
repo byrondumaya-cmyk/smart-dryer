@@ -19,8 +19,8 @@ SLOT_SENSOR_MAP = {
     1: {'gpio': 4,  'model': 'DHT22', 'label': 'Slot 1'},
     2: {'gpio': 17, 'model': 'DHT22', 'label': 'Slot 2'},
     3: {'gpio': 27, 'model': 'DHT22', 'label': 'Slot 3'},
-    4: {'gpio': 22, 'model': 'DHT22', 'label': 'Slot 4'},
-    5: {'gpio': 5,  'model': 'DHT22', 'label': 'Slot 5'},
+    4: {'gpio': 22, 'model': 'DHT11', 'label': 'Slot 4'},
+    5: {'gpio': 5,  'model': 'DHT11', 'label': 'Slot 5'},
 }
 
 # --- Motor (L298N DC) Calibration ---
