@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <title>SmartDryer — V2 Local Control</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
 <style>
@@ -108,6 +108,31 @@ main{
   position:relative;overflow:hidden;
   border-radius:20px; border:1px solid var(--border2);
   background:var(--bg2); padding:24px; display:flex; flex-direction:column;
+}
+
+/* Mobile Overrides */
+@media(max-width:768px){
+  header { padding: 16px; }
+  main { padding: 16px; gap: 24px; }
+  .brand-name { font-size: 1rem; }
+  .slots-row {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    margin-right: -16px; 
+    padding-right: 16px;
+    padding-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .slot-card {
+    min-width: 280px; 
+    scroll-snap-align: center;
+    flex-shrink: 0;
+  }
+  .controls-grid { grid-template-columns: 1fr; }
+  .ctrl-card { padding: 16px; }
+  .big-btn { min-height: 54px; } /* larger touch targets */
+  .motor-btn-grp button { min-height: 48px; }
 }
 .slot-card.wet{
   border-color:rgba(59,130,246,0.4);
@@ -217,7 +242,7 @@ main{
   color:var(--text); border-radius:8px; padding:12px; font-family:var(--mono);
 }
 
-@media(max-width:768px){ .controls-grid{grid-template-columns: 1fr;} }
+@media(max-width:768px){ /* Handled above */ }
 
 /* Toast Notifications */
 #toastContainer {
