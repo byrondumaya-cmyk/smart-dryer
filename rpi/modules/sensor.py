@@ -238,7 +238,10 @@ class SensorModule:
                     for slot_id in SLOT_SENSOR_MAP:
                         if self._stop_event.is_set():
                             break
-                        self._read_slot_pigpio(slot_id)
+                        try:
+                            self._read_slot_pigpio(slot_id)
+                        except Exception as inner_e:
+                            logger.error(f"Slot {slot_id} read exception: {inner_e}")
                     time.sleep(DHT_READ_INTERVAL)
                 except Exception as e:
                     logger.error(f"Sensor pigpio poll loop error: {e}")
@@ -250,7 +253,10 @@ class SensorModule:
                     for slot_id in SLOT_SENSOR_MAP:
                         if self._stop_event.is_set():
                             break
-                        self._read_slot_legacy(slot_id)
+                        try:
+                            self._read_slot_legacy(slot_id)
+                        except Exception as inner_e:
+                            logger.error(f"Slot {slot_id} legacy read exception: {inner_e}")
                         time.sleep(0.5)
                     time.sleep(DHT_READ_INTERVAL)
                 except Exception as e:
