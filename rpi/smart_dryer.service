@@ -1,0 +1,17 @@
+[Unit]
+Description=Smart Dryer V2 Control System
+After=network.target pigpiod.service
+Requires=pigpiod.service
+
+[Service]
+Type=simple
+User=raspberrypi4b
+WorkingDirectory=/home/raspberrypi4b/Desktop/Smart_Dryer/smart-dryer/rpi
+ExecStart=/home/raspberrypi4b/Desktop/Smart_Dryer/smart-dryer/rpi/venv/bin/python main.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/raspberrypi4b/Desktop/Smart_Dryer/smart-dryer/rpi/smart_dryer.log
+StandardError=append:/home/raspberrypi4b/Desktop/Smart_Dryer/smart-dryer/rpi/smart_dryer.log
+
+[Install]
+WantedBy=multi-user.target
