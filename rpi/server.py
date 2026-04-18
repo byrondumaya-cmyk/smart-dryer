@@ -210,12 +210,18 @@ def post_command():
     elif cmd == "test_sms":
         from modules.sms import sms
         state = state_store.load()
-        recipient = state.get("sms_recipient")
-        if not recipient:
-            return jsonify({"error": "No SMS recipient configured"}), 400
+        recipients = state.get("sms_recipients", [])
+        if not recipients:
+            return jsonify({"error": "No SMS recipients configured"}), 400
         
-        ok = sms.send_custom(recipient, "TEST: Smart Dryer SMS integration is functional.")
-        if ok:
+        success = False
+        message = "TEST: Smart Dryer SMS integration is functional."
+        for number in recipients:
+            if number.strip():
+                if sms.send_custom(number.strip(), message):
+                    success = True
+
+        if success:
             return jsonify({"status": "sms_test_sent"})
         else:
             return jsonify({"error": "SMS failed to send"}), 500

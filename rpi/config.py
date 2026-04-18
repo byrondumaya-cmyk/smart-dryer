@@ -9,7 +9,7 @@ GPIO_PINS = {
     'motor_in1': 23,       # L298N IN1 - direction control
     'motor_in2': 24,       # L298N IN2 - direction control
     'motor_en':  18,       # L298N ENA - PWM speed (hardware PWM pin)
-    'limit_home': 25,      # Limit switch - active LOW when pressed (pull-up)
+    'limit_home': 21,      # Limit switch - active LOW when pressed (pull-up)
     'relay_uv':  16,       # UV sterilization relay - active LOW module
     'buzzer':    12,       # Active/passive buzzer
 }
