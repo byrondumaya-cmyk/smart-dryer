@@ -31,29 +31,48 @@ class GlobalCamera:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
         
     def start(self):
+        # Give the USB subsystem time to enumerate the device before querying
         self._cam = cv2.VideoCapture(0)
-        # Explicitly request 720p with hardware MJPG to avoid USB saturation and lag
+        time.sleep(1.5)  # USB camera warm-up — avoids isOpened() false-negative on Pi
+
+        # Explicitly request MJPG codec to reduce USB bandwidth and lag
         self._cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
         self._cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self._cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         self._cam.set(cv2.CAP_PROP_FPS, 15)
-        
+
         if not self._cam.isOpened():
-            logger.error("Camera index 0 failed to open!")
-        
+            # Camera failed — log and leave _running=False so _update() never starts
+            logger.error("Camera index 0 failed to open! Stream will show no-signal frame.")
+            self._cam.release()
+            self._cam = None
+            # _running stays False — the MJPEG generator will serve the no-signal JPEG
+            return
+
         self._running = True
         self._thread = threading.Thread(target=self._update, daemon=True)
         self._thread.start()
-        logger.info("Global USB camera started.")
+        logger.info("Global USB camera started (720p MJPG).")
 
     def _update(self):
         while self._running:
-            if self._cam and self._cam.isOpened():
+            if self._cam is None:
+                # Camera was never opened successfully — exit cleanly
+                break
+            if self._cam.isOpened():
                 ret, frame = self._cam.read()
                 if ret:
                     with self._lock:
                         self._latest_frame = frame
-            time.sleep(0.01) # ~100fps max poll to avoid blocking
+                else:
+                    # Read failed (cable pull, device error) — brief back-off
+                    time.sleep(0.5)
+            else:
+                # Camera dropped unexpectedly — stop loop, don't busy-wait
+                logger.warning("Camera disconnected during runtime. Stopping update thread.")
+                self._running = False
+                break
+            time.sleep(0.01)  # ~100 fps max poll rate
 
     def read_latest(self):
         with self._lock:
@@ -258,14 +277,24 @@ def post_command():
     return jsonify({"error": "unknown command"}), 400
 
 def generate_mjpeg():
-    # MJPEG stream boundary handler
+    """MJPEG multipart stream — always yields a frame, even when camera is offline.
+
+    Sleeping silently when jpg=None causes the browser to stall and disconnect.
+    Instead we serve the pre-built no-signal frame so the <img> tag stays alive.
+    """
+    # Cache the no-signal JPEG once so we don't re-encode on every failed frame
+    _no_sig_jpg = camera_feed.get_jpeg()  # may be the no-signal frame on first call
     while True:
         jpg = camera_feed.get_jpeg()
+        if jpg is None:
+            # Encode the no-signal frame as a fallback JPEG
+            ns = camera_feed._no_signal_frame
+            _, buf = cv2.imencode('.jpg', ns, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            jpg = buf.tobytes() if buf is not None else None
         if jpg:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + jpg + b'\r\n')
-        else:
-            time.sleep(0.1)
+        time.sleep(0.05)  # ~20 fps cap — avoids flooding the browser
 
 @app.route("/video_feed")
 def video_feed():

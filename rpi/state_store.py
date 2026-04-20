@@ -83,12 +83,9 @@ def load() -> dict:
         with open(STATE_FILE, "r") as f:
             state = json.load(f)
         
-        # Migration checks to ensure missing nested dicts are added dynamically
-        # without overwriting existing settings
-        for key, val in DEFAULT_STATE.items():
-            if key not in state:
-                state[key] = val
-                
+        # --- Legacy field migrations (run BEFORE default injection) ---
+        # These must execute first so .get() checks see the old keys before
+        # DEFAULT_STATE overwrites them with empty defaults.
         if "toggles" not in state:
             state["toggles"] = DEFAULT_STATE["toggles"]
         if "weights" not in state:
@@ -97,11 +94,18 @@ def load() -> dict:
             state["thresholds"] = DEFAULT_STATE["thresholds"]
         if "dwell_time" not in state:
             state["dwell_time"] = DEFAULT_STATE["dwell_time"]
-        if "sms_recipients" not in state:
-            state["sms_recipients"] = [state["sms_recipient"]] if state.get("sms_recipient") else []
         if "calibration" not in state:
             state["calibration"] = DEFAULT_STATE["calibration"]
-            
+        # Migrate single sms_recipient → sms_recipients list BEFORE defaults inject []
+        if "sms_recipients" not in state:
+            state["sms_recipients"] = [state["sms_recipient"]] if state.get("sms_recipient") else []
+
+        # --- Inject any other missing top-level keys from DEFAULT_STATE ---
+        # (runs AFTER migrations so it doesn't overwrite freshly migrated fields)
+        for key, val in DEFAULT_STATE.items():
+            if key not in state:
+                state[key] = val
+                
         return state
     except Exception as e:
         logger.error(f"State load failed: {e} — using defaults.")

@@ -3,7 +3,7 @@
 # Hardware: L298N dual H-bridge driver
 #   IN1 / IN2 → direction
 #   ENA (PWM)  → speed via GPIO.PWM on GPIO 18
-#   limit_home → active-LOW limit switch for homing (GPIO 25, pull-up)
+#   limit_home → active-LOW limit switch for homing (GPIO 21, pull-up)
 #
 # Positioning is time-based (ms from home).
 # Calibrate slot timing via the dashboard.
@@ -88,9 +88,12 @@ class MotorController:
         Timeout if not found within MOTOR_HOME_TIMEOUT.
         Limit switch is Active LOW (LOW/0 = pulled to ground when switch pressed).
         """
+        # Load timeout BEFORE acquiring the lock to avoid disk I/O inside the
+        # motor timing critical section, which could cause the limit-switch
+        # pulse to be missed on a slow SD card.
+        timeout = state_store.load().get("motor_home_timeout", 10.0)
+
         with _lock:
-            # We don't import scanner here to avoid circular imports.
-            # State mutation for "homing..." will be handled by caller.
             logger.info("Motor homing sequence started.")
             try:
                 from modules.buzzer import buzzer
@@ -106,7 +109,6 @@ class MotorController:
                 
                 start_time = time.time()
                 success = False
-                timeout = state_store.load().get("motor_home_timeout", 10.0)
 
                 while (time.time() - start_time) < timeout:
                     # Switch is Active LOW -> 0 means triggered

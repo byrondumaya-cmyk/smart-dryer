@@ -26,6 +26,7 @@ class ScanController:
         self._state        = state_store.load()
         self._running      = False
         self._stop_event   = threading.Event()
+        self._uv_off_event = threading.Event()   # signals UV auto-off thread to cancel early
         self._thread       = None
         self._current_slot = None
         self.system_logs   = []
@@ -261,7 +262,9 @@ class ScanController:
             sent = sms.send_drying_complete()
             if sent:
                 buzzer.play("sms_sent")
-                self._log_event(f"SMS Alert sent to {self._state.get('sms_recipient','')}", 'SUCCESS')
+                recipients = self._state.get('sms_recipients', [])
+                rec_str = ', '.join(recipients) if recipients else '(none configured)'
+                self._log_event(f"SMS Alert sent to: {rec_str}", 'SUCCESS')
             else:
                 buzzer.play("sms_failed")
                 self._log_event("SMS Delivery Failed.", 'ERROR')
@@ -279,30 +282,48 @@ class ScanController:
             relay.on()
             buzzer.play("uv_on")
             self._state["uv_on"] = True
-            
+            state_store.save(self._state)
+
             # UV Auto-off Thread Dispatcher
+            # Uses _uv_off_event so the timer can be cancelled cleanly if the next
+            # scan cycle starts before the timeout expires.
             timeout_mins = self._state.get("uv_auto_off_minutes", 15)
-            def safe_off():
-                time.sleep(timeout_mins * 60)
-                if self._state["uv_on"] and not self._running:
+            self._uv_off_event.clear()
+            def safe_off(timeout_m, done_event):
+                # Wait for either the timeout OR an early-cancel signal
+                cancelled = done_event.wait(timeout=timeout_m * 60)
+                if cancelled:
+                    # Next cycle started — UV teardown is handled by _loop()
+                    return
+                if self._state.get("uv_on", False):
                     relay.off()
                     self._state["uv_on"] = False
                     buzzer.play("uv_off")
-                    self._log_event(f"UV Auto-OFF triggered after {timeout_mins}m.", "INFO")
+                    self._log_event(f"UV Auto-OFF triggered after {timeout_m}m.", "INFO")
                     state_store.save(self._state)
-            threading.Thread(target=safe_off, daemon=True).start()
-            
+            threading.Thread(
+                target=safe_off, args=(timeout_mins, self._uv_off_event), daemon=True
+            ).start()
+
         else:
             relay.off()
-            if self._state["uv_on"]:
+            if self._state.get("uv_on", False):
                 buzzer.play("uv_off")
             self._state["uv_on"] = False
 
     # ── Main loop ─────────────────────────────────────────────────────────────
     def _loop(self, global_camera):
         while not self._stop_event.is_set():
-            relay.off()
-            self._state["uv_on"] = False
+            # Signal any pending UV auto-off timer to cancel — the new cycle will
+            # manage UV state from scratch. Do NOT force relay.off() here; the
+            # UV auto-off thread handles its own teardown via safe_off().
+            self._uv_off_event.set()
+
+            # Only turn off relay at the START of a new cycle if UV is currently on
+            # (i.e. a previous auto-off fired but pi lost power mid-timer)
+            if self._state.get("uv_on", False):
+                relay.off()
+                self._state["uv_on"] = False
 
             try:
                 self._run_cycle(global_camera)
@@ -325,6 +346,8 @@ class ScanController:
                 time.sleep(1)
                 waited += 1
 
+        # Scan loop exiting — cancel UV timer and ensure relay is off
+        self._uv_off_event.set()
         relay.off()
         self._state["uv_on"] = False
         self._state["running"] = False
