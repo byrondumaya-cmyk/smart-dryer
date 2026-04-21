@@ -45,7 +45,8 @@ class GlobalCamera:
                     pass
                 self._cam = None
 
-            cap = cv2.VideoCapture(0)
+            # Use absolute string path to bypass OpenCV integer index mapping bugs
+            cap = cv2.VideoCapture('/dev/video0', cv2.CAP_V4L2)
             time.sleep(1.5)   # USB camera warm-up — avoids isOpened() false-negative on Pi
 
             if not cap.isOpened():
@@ -288,7 +289,10 @@ def post_command():
             
         if "calibration" in data:
             state["calibration"].update(data["calibration"])
+            
         state_store.save(state)
+        scanner._state = state  # Sync back to the scanning loop so it doesn't overwrite with stale memory
+        
         return jsonify({"status": "updated"})
 
     elif cmd == "test_buzzer":

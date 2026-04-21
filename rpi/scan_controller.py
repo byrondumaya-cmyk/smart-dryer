@@ -259,7 +259,7 @@ class ScanController:
         sms_every = self._state.get("toggles", {}).get("sms_cycle", False)
         if (all_dry and not self._state.get("all_dry_notified")) or sms_every:
             self._log_event("Triggering Semaphore SMS out.", 'SUCCESS')
-            sent = sms.send_drying_complete()
+            sent = sms.send_cycle_report(all_dry=all_dry, dry_count=dry_count, wet_count=wet_count)
             if sent:
                 buzzer.play("sms_sent")
                 recipients = self._state.get('sms_recipients', [])

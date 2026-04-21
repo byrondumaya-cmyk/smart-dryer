@@ -28,7 +28,7 @@ class SMSModule:
         recipients = state.get("sms_recipients", [])
         return key, [r.strip() for r in recipients if r.strip()]
 
-    def send_drying_complete(self) -> bool:
+    def send_cycle_report(self, all_dry: bool, dry_count: int, wet_count: int) -> bool:
         if self._sent_once:
             logger.info("SMS: already sent this cycle — skipping.")
             return True
@@ -43,10 +43,19 @@ class SMSModule:
             logger.error("SMS: No API key configured. Set it in the dashboard.")
             return False
 
-        message = (
-            "Smart Dryer Alert: All slots are DRY! "
-            "You can collect your laundry now."
-        )
+        import time
+        timestamp = time.strftime('%I:%M %p')
+        
+        if all_dry:
+            message = (
+                "Smart Dryer: All slots are DRY! "
+                f"You can collect your laundry now. (T: {timestamp})"
+            )
+        else:
+            message = (
+                f"Smart Dryer Update: {dry_count} DRY, {wet_count} WET. "
+                f"Drying is still in progress. (T: {timestamp})"
+            )
         
         success = False
         for number in recipients:
@@ -78,6 +87,13 @@ class SMSModule:
             body = resp.text
             logger.info(f"SMS response [{resp.status_code}]: {body[:300]}")
             resp.raise_for_status()
+            
+            # Semaphore API returns 200 OK even for validation errors
+            data = resp.json()
+            if isinstance(data, dict):
+                logger.error(f"SMS API Error: {data}")
+                return False
+                
             return True
         except requests.exceptions.ConnectionError:
             logger.error("SMS: network error — is the Pi online?")
