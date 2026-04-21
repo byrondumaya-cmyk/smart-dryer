@@ -237,8 +237,6 @@ class ScanController:
         buzzer.play("cycle_complete")
 
         # ── Post-cycle evaluations ────────────────────────────────────────
-        # A cycle is only ALL DRY if every slot is either DRY or EMPTY (and >= 1 valid slot exists)
-        # UNKNOWN defaults to holding back the cycle. WET immediately holds it back.
         wet_count     = sum(1 for v in cycle_results.values() if v == "WET")
         unknown_count = sum(1 for v in cycle_results.values() if v == "UNKNOWN")
         dry_count     = sum(1 for v in cycle_results.values() if v == "DRY")
@@ -247,52 +245,22 @@ class ScanController:
         all_dry = (wet_count == 0 and unknown_count == 0) and (dry_count + empty_count > 0)
         self._state["last_cycle_at"] = datetime.datetime.now().isoformat()
 
-        # Terminal count logic
         self._log_event(f"Cycle result -> DRY:{dry_count} WET:{wet_count} EMPTY:{empty_count} UNKNOWN:{unknown_count}", "INFO")
-        self._log_event(f"all_dry={all_dry}", "INFO")
 
         if all_dry:
             buzzer.play("all_dry")
         else:
             buzzer.play("not_all_dry")
 
-        # ── SMS (crash-isolated) ──────────────────────────────────────────
-        try:
-            sms_every = self._state.get("toggles", {}).get("sms_cycle", False)
-            manual_scan = self._state.get("manual_scan_trigger", False)
-            already_notified = self._state.get("all_dry_notified", False)
+        # Save cycle summary for _loop to send SMS (outside this method)
+        self._last_cycle = {
+            "all_dry": all_dry,
+            "dry_count": dry_count,
+            "wet_count": wet_count,
+            "unknown_count": unknown_count,
+            "empty_count": empty_count,
+        }
 
-            self._log_event(
-                f"SMS decision: all_dry={all_dry}, notified={already_notified}, "
-                f"sms_every={sms_every}, manual={manual_scan}", "INFO"
-            )
-
-            should_send = (all_dry and not already_notified) or sms_every or manual_scan
-
-            if should_send:
-                self._log_event("SMS: WILL SEND — condition met.", 'SUCCESS')
-                sent = sms.send_cycle_report(
-                    all_dry=all_dry, dry_count=dry_count, wet_count=wet_count
-                )
-                if sent:
-                    buzzer.play("sms_sent")
-                    recipients = self._state.get('sms_recipients', [])
-                    rec_str = ', '.join(recipients) if recipients else '(none configured)'
-                    self._log_event(f"SMS Alert sent to: {rec_str}", 'SUCCESS')
-                else:
-                    buzzer.play("sms_failed")
-                    self._log_event("SMS Delivery FAILED — check API key / recipients / network.", 'ERROR')
-                if all_dry:
-                    self._state["all_dry_notified"] = sent
-            else:
-                self._log_event("SMS: SKIPPED — no condition met.", "WARN")
-                if not all_dry:
-                    self._state["all_dry_notified"] = False
-        except Exception as sms_err:
-            logger.exception(f"SMS block crashed: {sms_err}")
-            self._log_event(f"SMS CRASH: {sms_err}", 'ERROR')
-
-        self._state["manual_scan_trigger"] = False
         self._state["system_status"] = "idle"
         state_store.save(self._state)
 
@@ -332,19 +300,63 @@ class ScanController:
                 buzzer.play("uv_off")
             self._state["uv_on"] = False
 
+    # ── SMS sending (runs at _loop level, OUTSIDE _run_cycle) ──────────────
+    def _send_cycle_sms(self):
+        """Attempt SMS after every completed cycle. Runs in its own try/except
+        at the _loop level so no crash inside _run_cycle can skip it."""
+        summary = getattr(self, '_last_cycle', None)
+        if not summary:
+            self._log_event("SMS: No cycle summary found — cycle may have crashed before finishing.", "WARN")
+            return
+
+        all_dry      = summary["all_dry"]
+        dry_count    = summary["dry_count"]
+        wet_count    = summary["wet_count"]
+
+        sms_every        = self._state.get("toggles", {}).get("sms_cycle", False)
+        manual_scan      = self._state.get("manual_scan_trigger", False)
+        already_notified = self._state.get("all_dry_notified", False)
+
+        self._log_event(
+            f"SMS gate: all_dry={all_dry}, notified={already_notified}, "
+            f"sms_every={sms_every}, manual={manual_scan}", "INFO"
+        )
+
+        should_send = (all_dry and not already_notified) or sms_every or manual_scan
+
+        if not should_send:
+            self._log_event("SMS: SKIPPED — no condition met.", "WARN")
+            if not all_dry:
+                self._state["all_dry_notified"] = False
+            return
+
+        self._log_event("SMS: WILL SEND — condition met.", 'SUCCESS')
+        sent = sms.send_cycle_report(
+            all_dry=all_dry, dry_count=dry_count, wet_count=wet_count
+        )
+
+        if sent:
+            buzzer.play("sms_sent")
+            recipients = self._state.get('sms_recipients', [])
+            rec_str = ', '.join(recipients) if recipients else '(none)'
+            self._log_event(f"SMS DELIVERED to: {rec_str}", 'SUCCESS')
+        else:
+            buzzer.play("sms_failed")
+            self._log_event("SMS DELIVERY FAILED.", 'ERROR')
+
+        if all_dry:
+            self._state["all_dry_notified"] = sent
+
     # ── Main loop ─────────────────────────────────────────────────────────────
     def _loop(self, global_camera):
         while not self._stop_event.is_set():
-            # Signal any pending UV auto-off timer to cancel — the new cycle will
-            # manage UV state from scratch. Do NOT force relay.off() here; the
-            # UV auto-off thread handles its own teardown via safe_off().
             self._uv_off_event.set()
 
-            # Only turn off relay at the START of a new cycle if UV is currently on
-            # (i.e. a previous auto-off fired but pi lost power mid-timer)
             if self._state.get("uv_on", False):
                 relay.off()
                 self._state["uv_on"] = False
+
+            self._last_cycle = None  # Reset before cycle
 
             try:
                 self._run_cycle(global_camera)
@@ -354,6 +366,16 @@ class ScanController:
                 buzzer.play("generic_error")
                 self._state["system_status"] = "error"
                 state_store.save(self._state)
+
+            # ── SMS runs HERE — outside _run_cycle, cannot be skipped ─────
+            try:
+                self._send_cycle_sms()
+            except Exception as sms_err:
+                logger.exception(f"Post-cycle SMS crashed: {sms_err}")
+                self._log_event(f"SMS CRASH: {sms_err}", 'ERROR')
+
+            self._state["manual_scan_trigger"] = False
+            state_store.save(self._state)
 
             if self._stop_event.is_set():
                 break
