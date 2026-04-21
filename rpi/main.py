@@ -64,6 +64,7 @@ def main():
     )
     logger.info("=" * 60)
     logger.info("Smart Dryer V2 starting (Local API Mode)...")
+    logger.info("CODE VERSION: 2026-04-21-B (Flask-thread SMS dispatch)")
     logger.info("=" * 60)
 
     _check_environment()

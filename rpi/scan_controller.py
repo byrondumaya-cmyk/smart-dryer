@@ -300,13 +300,14 @@ class ScanController:
                 buzzer.play("uv_off")
             self._state["uv_on"] = False
 
-    # ── SMS sending (runs at _loop level, OUTSIDE _run_cycle) ──────────────
-    def _send_cycle_sms(self):
-        """Attempt SMS after every completed cycle. Runs in its own try/except
-        at the _loop level so no crash inside _run_cycle can skip it."""
+    # ── SMS queueing (runs at _loop level, OUTSIDE _run_cycle) ───────────
+    def _queue_cycle_sms(self):
+        """Queue an SMS request for the Flask thread to dispatch.
+        The scan thread cannot reliably send HTTP requests in all
+        environments, so we delegate to the Flask polling endpoint."""
         summary = getattr(self, '_last_cycle', None)
         if not summary:
-            self._log_event("SMS: No cycle summary found — cycle may have crashed before finishing.", "WARN")
+            self._log_event("SMS: No cycle summary — cycle may have crashed.", "WARN")
             return
 
         all_dry      = summary["all_dry"]
@@ -330,22 +331,26 @@ class ScanController:
                 self._state["all_dry_notified"] = False
             return
 
-        self._log_event("SMS: WILL SEND — condition met.", 'SUCCESS')
-        sent = sms.send_cycle_report(
-            all_dry=all_dry, dry_count=dry_count, wet_count=wet_count
-        )
-
-        if sent:
-            buzzer.play("sms_sent")
-            recipients = self._state.get('sms_recipients', [])
-            rec_str = ', '.join(recipients) if recipients else '(none)'
-            self._log_event(f"SMS DELIVERED to: {rec_str}", 'SUCCESS')
-        else:
-            buzzer.play("sms_failed")
-            self._log_event("SMS DELIVERY FAILED.", 'ERROR')
-
+        # Build the message now, queue it for Flask thread dispatch
+        import time as _t
+        timestamp = _t.strftime('%I:%M %p')
         if all_dry:
-            self._state["all_dry_notified"] = sent
+            message = (
+                "Smart Dryer: All slots are DRY! "
+                f"You can collect your laundry now. (T: {timestamp})"
+            )
+        else:
+            message = (
+                f"Smart Dryer Update: {dry_count} DRY, {wet_count} WET. "
+                f"Drying is still in progress. (T: {timestamp})"
+            )
+
+        self._state["sms_pending"] = {
+            "message": message,
+            "all_dry": all_dry,
+        }
+        state_store.save(self._state)
+        self._log_event("SMS: QUEUED for Flask-thread dispatch.", 'SUCCESS')
 
     # ── Main loop ─────────────────────────────────────────────────────────────
     def _loop(self, global_camera):
@@ -367,11 +372,11 @@ class ScanController:
                 self._state["system_status"] = "error"
                 state_store.save(self._state)
 
-            # ── SMS runs HERE — outside _run_cycle, cannot be skipped ─────
+            # ── Queue SMS (picked up by Flask /api/state poll) ───────────
             try:
-                self._send_cycle_sms()
+                self._queue_cycle_sms()
             except Exception as sms_err:
-                logger.exception(f"Post-cycle SMS crashed: {sms_err}")
+                logger.exception(f"Post-cycle SMS queue crashed: {sms_err}")
                 self._log_event(f"SMS CRASH: {sms_err}", 'ERROR')
 
             self._state["manual_scan_trigger"] = False

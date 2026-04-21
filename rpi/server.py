@@ -217,6 +217,49 @@ def get_state():
             pass # fallback to original values if calibration cast fails
 
     status["sensor_live"] = sensor_data
+
+    # ── Dispatch queued cycle SMS from Flask thread ────────────────────
+    # The scan-loop daemon thread queues SMS requests here because
+    # direct HTTP from daemon threads can be unreliable on some Pi setups.
+    # This runs in the same Flask thread where test_sms works perfectly.
+    try:
+        pending = scanner._state.get("sms_pending")
+        if pending and isinstance(pending, dict):
+            from modules.sms import sms as sms_mod
+            message = pending.get("message", "")
+            all_dry = pending.get("all_dry", False)
+
+            state = state_store.load()
+            api_key = state.get("sms_api_key", "").strip()
+            recipients = [r.strip() for r in state.get("sms_recipients", []) if r.strip()]
+
+            logger.info(f"[SMS-DISPATCH] Pending SMS found. recipients={recipients}, key_len={len(api_key)}")
+
+            if api_key and recipients:
+                success = False
+                for number in recipients:
+                    ok = sms_mod.send_custom(number, message)
+                    logger.info(f"[SMS-DISPATCH] send_custom({number}) = {ok}")
+                    if ok:
+                        success = True
+
+                if success:
+                    scanner._log_event(f"SMS DELIVERED via Flask to: {', '.join(recipients)}", 'SUCCESS')
+                else:
+                    scanner._log_event("SMS DELIVERY FAILED via Flask.", 'ERROR')
+
+                if all_dry:
+                    scanner._state["all_dry_notified"] = success
+            else:
+                scanner._log_event("SMS: No API key or recipients configured.", 'ERROR')
+
+            # Clear the pending flag
+            scanner._state["sms_pending"] = None
+            state_store.save(scanner._state)
+    except Exception as e:
+        logger.exception(f"[SMS-DISPATCH] Error: {e}")
+        scanner._state["sms_pending"] = None
+
     return jsonify(status)
 
 @app.route("/api/command", methods=["POST"])
