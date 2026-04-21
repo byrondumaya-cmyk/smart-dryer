@@ -373,6 +373,7 @@ class ScanController:
                     "sensor_temp": None,
                     "stable_state": "UNKNOWN"
                 })
+        self._state["all_dry_notified"] = False
         state_store.save(self._state)
 
         self._stop_event.clear()
