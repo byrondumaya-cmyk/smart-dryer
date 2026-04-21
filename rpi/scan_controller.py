@@ -257,7 +257,9 @@ class ScanController:
 
         # SMS
         sms_every = self._state.get("toggles", {}).get("sms_cycle", False)
-        if (all_dry and not self._state.get("all_dry_notified")) or sms_every:
+        manual_scan = self._state.get("manual_scan_trigger", False)
+        
+        if (all_dry and not self._state.get("all_dry_notified")) or sms_every or manual_scan:
             self._log_event("Triggering Semaphore SMS out.", 'SUCCESS')
             sent = sms.send_cycle_report(all_dry=all_dry, dry_count=dry_count, wet_count=wet_count)
             if sent:
@@ -271,6 +273,8 @@ class ScanController:
             self._state["all_dry_notified"] = sent if all_dry else self._state.get("all_dry_notified")
         elif not all_dry:
             self._state["all_dry_notified"] = False
+            
+        self._state["manual_scan_trigger"] = False
 
         self._state["system_status"] = "idle"
         state_store.save(self._state)
@@ -374,6 +378,7 @@ class ScanController:
                     "stable_state": "UNKNOWN"
                 })
         self._state["all_dry_notified"] = False
+        self._state["manual_scan_trigger"] = True
         state_store.save(self._state)
 
         self._stop_event.clear()
