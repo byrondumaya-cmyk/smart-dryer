@@ -249,33 +249,50 @@ class ScanController:
 
         # Terminal count logic
         self._log_event(f"Cycle result -> DRY:{dry_count} WET:{wet_count} EMPTY:{empty_count} UNKNOWN:{unknown_count}", "INFO")
+        self._log_event(f"all_dry={all_dry}", "INFO")
 
         if all_dry:
             buzzer.play("all_dry")
         else:
             buzzer.play("not_all_dry")
 
-        # SMS
-        sms_every = self._state.get("toggles", {}).get("sms_cycle", False)
-        manual_scan = self._state.get("manual_scan_trigger", False)
-        
-        if (all_dry and not self._state.get("all_dry_notified")) or sms_every or manual_scan:
-            self._log_event("Triggering Semaphore SMS out.", 'SUCCESS')
-            sent = sms.send_cycle_report(all_dry=all_dry, dry_count=dry_count, wet_count=wet_count)
-            if sent:
-                buzzer.play("sms_sent")
-                recipients = self._state.get('sms_recipients', [])
-                rec_str = ', '.join(recipients) if recipients else '(none configured)'
-                self._log_event(f"SMS Alert sent to: {rec_str}", 'SUCCESS')
-            else:
-                buzzer.play("sms_failed")
-                self._log_event("SMS Delivery Failed.", 'ERROR')
-            self._state["all_dry_notified"] = sent if all_dry else self._state.get("all_dry_notified")
-        elif not all_dry:
-            self._state["all_dry_notified"] = False
-            
-        self._state["manual_scan_trigger"] = False
+        # ── SMS (crash-isolated) ──────────────────────────────────────────
+        try:
+            sms_every = self._state.get("toggles", {}).get("sms_cycle", False)
+            manual_scan = self._state.get("manual_scan_trigger", False)
+            already_notified = self._state.get("all_dry_notified", False)
 
+            self._log_event(
+                f"SMS decision: all_dry={all_dry}, notified={already_notified}, "
+                f"sms_every={sms_every}, manual={manual_scan}", "INFO"
+            )
+
+            should_send = (all_dry and not already_notified) or sms_every or manual_scan
+
+            if should_send:
+                self._log_event("SMS: WILL SEND — condition met.", 'SUCCESS')
+                sent = sms.send_cycle_report(
+                    all_dry=all_dry, dry_count=dry_count, wet_count=wet_count
+                )
+                if sent:
+                    buzzer.play("sms_sent")
+                    recipients = self._state.get('sms_recipients', [])
+                    rec_str = ', '.join(recipients) if recipients else '(none configured)'
+                    self._log_event(f"SMS Alert sent to: {rec_str}", 'SUCCESS')
+                else:
+                    buzzer.play("sms_failed")
+                    self._log_event("SMS Delivery FAILED — check API key / recipients / network.", 'ERROR')
+                if all_dry:
+                    self._state["all_dry_notified"] = sent
+            else:
+                self._log_event("SMS: SKIPPED — no condition met.", "WARN")
+                if not all_dry:
+                    self._state["all_dry_notified"] = False
+        except Exception as sms_err:
+            logger.exception(f"SMS block crashed: {sms_err}")
+            self._log_event(f"SMS CRASH: {sms_err}", 'ERROR')
+
+        self._state["manual_scan_trigger"] = False
         self._state["system_status"] = "idle"
         state_store.save(self._state)
 
