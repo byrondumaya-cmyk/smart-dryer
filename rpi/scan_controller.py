@@ -300,14 +300,13 @@ class ScanController:
                 buzzer.play("uv_off")
             self._state["uv_on"] = False
 
-    # ── SMS queueing (runs at _loop level, OUTSIDE _run_cycle) ───────────
-    def _queue_cycle_sms(self):
-        """Queue an SMS request for the Flask thread to dispatch.
-        The scan thread cannot reliably send HTTP requests in all
-        environments, so we delegate to the Flask polling endpoint."""
+    # ── SMS after cycle (isolated in a new thread) ─────────────────────────
+    def _fire_cycle_sms(self):
+        """Send SMS after a completed cycle. Called from _loop level
+        so no crash inside _run_cycle can prevent it."""
         summary = getattr(self, '_last_cycle', None)
         if not summary:
-            self._log_event("SMS: No cycle summary — cycle may have crashed.", "WARN")
+            self._log_event("SMS: No cycle summary — skipping.", "WARN")
             return
 
         all_dry      = summary["all_dry"]
@@ -331,26 +330,55 @@ class ScanController:
                 self._state["all_dry_notified"] = False
             return
 
-        # Build the message now, queue it for Flask thread dispatch
+        # Build message
         import time as _t
         timestamp = _t.strftime('%I:%M %p')
         if all_dry:
-            message = (
+            msg = (
                 "Smart Dryer: All slots are DRY! "
                 f"You can collect your laundry now. (T: {timestamp})"
             )
         else:
-            message = (
+            msg = (
                 f"Smart Dryer Update: {dry_count} DRY, {wet_count} WET. "
                 f"Drying is still in progress. (T: {timestamp})"
             )
 
-        self._state["sms_pending"] = {
-            "message": message,
-            "all_dry": all_dry,
-        }
-        state_store.save(self._state)
-        self._log_event("SMS: QUEUED for Flask-thread dispatch.", 'SUCCESS')
+        # Read config from disk (same source as test SMS)
+        import state_store as _ss
+        disk_state = _ss.load()
+        api_key = disk_state.get("sms_api_key", "").strip()
+        recipients = [r.strip() for r in disk_state.get("sms_recipients", []) if r.strip()]
+
+        if not api_key or not recipients:
+            self._log_event("SMS: No API key or recipients — skipping.", "ERROR")
+            return
+
+        self._log_event(f"SMS: Sending to {recipients}...", "SUCCESS")
+
+        # Fire in a fresh NON-daemon thread so it can't be killed mid-request
+        def _do_send():
+            try:
+                success = False
+                for number in recipients:
+                    ok = sms.send_custom(number, msg)
+                    self._log_event(f"SMS send_custom({number}) = {ok}", "INFO")
+                    if ok:
+                        success = True
+                if success:
+                    buzzer.play("sms_sent")
+                    self._log_event(f"SMS DELIVERED to: {', '.join(recipients)}", "SUCCESS")
+                else:
+                    buzzer.play("sms_failed")
+                    self._log_event("SMS DELIVERY FAILED.", "ERROR")
+                if all_dry:
+                    self._state["all_dry_notified"] = success
+                    state_store.save(self._state)
+            except Exception as e:
+                self._log_event(f"SMS thread error: {e}", "ERROR")
+
+        t = threading.Thread(target=_do_send, daemon=False, name="sms-send")
+        t.start()
 
     # ── Main loop ─────────────────────────────────────────────────────────────
     def _loop(self, global_camera):
@@ -361,7 +389,7 @@ class ScanController:
                 relay.off()
                 self._state["uv_on"] = False
 
-            self._last_cycle = None  # Reset before cycle
+            self._last_cycle = None
 
             try:
                 self._run_cycle(global_camera)
@@ -372,11 +400,11 @@ class ScanController:
                 self._state["system_status"] = "error"
                 state_store.save(self._state)
 
-            # ── Queue SMS (picked up by Flask /api/state poll) ───────────
+            # ── SMS fires here — outside _run_cycle ───────────────────────
             try:
-                self._queue_cycle_sms()
+                self._fire_cycle_sms()
             except Exception as sms_err:
-                logger.exception(f"Post-cycle SMS queue crashed: {sms_err}")
+                logger.exception(f"Post-cycle SMS error: {sms_err}")
                 self._log_event(f"SMS CRASH: {sms_err}", 'ERROR')
 
             self._state["manual_scan_trigger"] = False
