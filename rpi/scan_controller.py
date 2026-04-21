@@ -370,7 +370,8 @@ class ScanController:
                     "image_score": None,
                     "snapshot_url": None,
                     "sensor_hum": None,
-                    "sensor_temp": None
+                    "sensor_temp": None,
+                    "stable_state": "UNKNOWN"
                 })
         state_store.save(self._state)
 
@@ -399,7 +400,7 @@ class ScanController:
         return True
 
     def get_status(self) -> dict:
-        self._state = state_store.load()
+        disk_state = state_store.load()
         return {
             "running":          self._running,
             "system_status":    self._state.get("system_status", "idle"),
@@ -410,7 +411,7 @@ class ScanController:
             "sms_recipient":    self._state.get("sms_recipient", ""),
             "calibration":      motor.get_segments(),
             "logs":             self.system_logs,
-            "state_data":       self._state
+            "state_data":       disk_state
         }
 
 # Singleton

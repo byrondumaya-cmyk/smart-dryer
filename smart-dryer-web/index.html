@@ -296,7 +296,7 @@ main{
     <!-- CAMERA FEED -->
     <div class="ctrl-card">
       <div class="section-title">Live Camera Feed</div>
-      <img src="/video_feed" class="live-feed-img" onerror="this.src=''" alt="Camera stream" />
+      <img src="/video_feed" class="live-feed-img" onerror="retryStream(this)" alt="Camera stream" id="liveFeedImg" />
     </div>
 
     <!-- SCAN & ALERTS -->
@@ -436,6 +436,12 @@ main{
 </main>
 
 <script>
+function retryStream(img) {
+  setTimeout(() => {
+    img.src = '/video_feed?t=' + new Date().getTime();
+  }, 3000);
+}
+
 // UI GENERATION
 const slotsCont = document.getElementById('slotsContainer');
 let sHtml = '';
