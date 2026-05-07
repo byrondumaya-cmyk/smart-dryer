@@ -249,7 +249,8 @@ def post_command():
         return jsonify({"status": f"moved to {slot}"})
         
     elif cmd == "update_settings":
-        state = state_store.load()
+        state = scanner._state
+
         
         # Cast values appropriately
         if "motor_segments" in data:
@@ -289,6 +290,7 @@ def post_command():
         if "calibration" in data:
             state["calibration"].update(data["calibration"])
         state_store.save(state)
+        logger.info("Settings and calibration updated via UI and saved to disk.")
         return jsonify({"status": "updated"})
 
     elif cmd == "test_buzzer":

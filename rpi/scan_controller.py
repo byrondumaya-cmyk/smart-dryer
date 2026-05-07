@@ -487,7 +487,8 @@ class ScanController:
             "last_cycle_at":    self._state.get("last_cycle_at"),
             "all_dry_notified": self._state.get("all_dry_notified"),
             "sms_recipient":    self._state.get("sms_recipient", ""),
-            "calibration":      motor.get_segments(),
+            "calibration":      self._state.get("calibration", {}),
+            "motor_segments":   motor.get_segments(),
             "logs":             self.system_logs,
             "state_data":       disk_state
         }

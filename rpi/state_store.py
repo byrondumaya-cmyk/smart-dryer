@@ -119,5 +119,6 @@ def save(state: dict):
         try:
             with open(STATE_FILE, "w") as f:
                 json.dump(state, f, indent=2, default=str)
+            logger.debug("State data successfully written to disk.")
         except Exception as e:
             logger.error(f"State save failed: {e}")
