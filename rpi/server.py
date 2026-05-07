@@ -195,6 +195,9 @@ def index():
 def serve_static(filename):
     return send_from_directory(WEB_DIR, filename)
 
+# Backend Version Flag for deployment diagnostics
+SMART_DRYER_BACKEND_VERSION = "empty-config-fix-v2"
+
 @app.route("/api/state")
 def get_state():
     status = scanner.get_status()
@@ -216,6 +219,7 @@ def get_state():
             pass # fallback to original values if calibration cast fails
 
     status["sensor_live"] = sensor_data
+    status["backend_version"] = SMART_DRYER_BACKEND_VERSION
     return jsonify(status)
 
 @app.route("/api/command", methods=["POST"])

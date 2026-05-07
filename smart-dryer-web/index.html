@@ -433,6 +433,10 @@ main{
       </div>
     </div>
   </div>
+  
+  <div style="text-align: center; margin-top: 24px; font-size: 0.7rem; color: var(--text3); font-family: var(--mono);">
+    Backend Version: <span id="backendVersionText">unknown</span>
+  </div>
 </main>
 
 <script>
@@ -668,6 +672,11 @@ function updateUI(d) {
       html += `<div class="log-line"><div class="log-time">[${ts}]</div><div class="log-msg log-${cls}">${lg.message}</div></div>`;
     });
     lc.innerHTML = html;
+  }
+  
+  // 6. Diagnostics
+  if (d.backend_version) {
+    document.getElementById('backendVersionText').textContent = d.backend_version;
   }
 }
 
